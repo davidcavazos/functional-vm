@@ -51,11 +51,11 @@ suite =
                 getType (Record (Dict.fromList [ ( "x", Integer 1 ), ( "y", Number 3.14 ) ]))
                     |> Expect.equal (RecordType (Dict.fromList [ ( "x", IntType ), ( "y", NumberType ) ]))
 
-        -- Load
-        , test "with Load" <|
+        -- Constructor
+        , test "with Constructor" <|
             \_ ->
-                getType (Load "x" IntType)
-                    |> Expect.equal IntType
+                getType (Constructor ( "T", [] ) "A" [])
+                    |> Expect.equal (NamedType "T" [])
 
         -- Lambda
         , test "with Lambda" <|
@@ -63,9 +63,9 @@ suite =
                 getType (Lambda ( "x", IntType ) (Integer 1))
                     |> Expect.equal (LambdaType IntType IntType)
 
-        -- Constructor
-        , test "with Constructor" <|
+        -- Input
+        , test "with Input" <|
             \_ ->
-                getType (Constructor ( "T", [] ) "A" [])
-                    |> Expect.equal (NamedType "T" [])
+                getType (Input "x" IntType)
+                    |> Expect.equal IntType
         ]

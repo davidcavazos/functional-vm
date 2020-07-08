@@ -100,9 +100,26 @@ suite =
                 dumpExpression (Lambda ( "x", IntType ) (Lambda ( "y", NumberType ) (Integer 42)))
                     |> Expect.equal "(x:Int)->(y:Number)->42"
 
-        -- Load
-        , test "Load: x with type Int" <|
+        -- Input
+        , test "Input: x with type Int" <|
             \_ ->
-                dumpExpression (Load "x" IntType)
+                dumpExpression (Input "x" IntType)
                     |> Expect.equal "(x:Int)"
+
+        -- Call
+        , test "Call: (f : Int -> Int) 1" <|
+            \_ ->
+                dumpExpression (Call "f" IntType IntType [ Integer 1 ])
+                    |> Expect.equal "(f:Int->Int) 1"
+
+        --
+        , test "Call: (f : Int -> Int -> Int) 1 2" <|
+            \_ ->
+                dumpExpression
+                    (Call "f"
+                        IntType
+                        (LambdaType IntType IntType)
+                        [ Integer 1, Integer 2 ]
+                    )
+                    |> Expect.equal "(f:Int->Int->Int) 1 2"
         ]

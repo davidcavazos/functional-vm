@@ -14,7 +14,7 @@ suite =
                 new
                     |> saveInput "x" IntType
                     |> dump
-                    |> Expect.equal "I x=Int"
+                    |> Expect.equal "V x=(x:Int)"
 
         --
         , test "after Ok" <|
@@ -23,7 +23,7 @@ suite =
                     |> withResult (Ok (Integer 1))
                     |> saveInput "x" IntType
                     |> dump
-                    |> Expect.equal "I x=Int;R 1"
+                    |> Expect.equal "V x=(x:Int);R 1"
 
         --
         , test "after Err" <|
@@ -32,7 +32,7 @@ suite =
                     |> withResult (Err (NameNotFound "x"))
                     |> saveInput "y" IntType
                     |> dump
-                    |> Expect.equal "I y=Int;E NameNotFound x"
+                    |> Expect.equal "V y=(y:Int);E NameNotFound x"
 
         --
         , test "NameAlreadyExists with name" <|
@@ -41,7 +41,7 @@ suite =
                     |> saveInput "x" IntType
                     |> saveInput "x" IntType
                     |> dump
-                    |> Expect.equal "I x=Int;E NameAlreadyExists x"
+                    |> Expect.equal "V x=(x:Int);E NameAlreadyExists x"
 
         --
         , test "NameAlreadyExists with input" <|
@@ -59,5 +59,5 @@ suite =
                     |> saveInput "x" IntType
                     |> saveInput "y" IntType
                     |> dump
-                    |> Expect.equal "I x=Int;I y=Int"
+                    |> Expect.equal "V x=(x:Int);V y=(y:Int)"
         ]

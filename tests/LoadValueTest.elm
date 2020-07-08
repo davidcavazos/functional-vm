@@ -1,4 +1,4 @@
-module LoadTest exposing (suite)
+module LoadValueTest exposing (suite)
 
 import Expect
 import FVM exposing (Expression(..), Type(..), load, new, saveInput, saveName)
@@ -8,8 +8,8 @@ import Test exposing (Test, describe, test)
 
 suite : Test
 suite =
-    describe "load"
-        [ test "undefined name" <|
+    describe "load Value"
+        [ test "NameNotFound" <|
             \_ ->
                 new
                     |> load "x"
@@ -24,13 +24,4 @@ suite =
                     |> load "x"
                     |> dump
                     |> Expect.equal "V x=1;R 1"
-
-        --
-        , test "defined input" <|
-            \_ ->
-                new
-                    |> saveInput "x" IntType
-                    |> load "x"
-                    |> dump
-                    |> Expect.equal "I x=Int;R (x:Int)"
         ]

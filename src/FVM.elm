@@ -2,7 +2,6 @@ module FVM exposing
     ( Context
     , Error(..)
     , Expression(..)
-    , NameDefinition(..)
     , Pattern(..)
     , Type(..)
     , TypeDefinition(..)
@@ -50,14 +49,9 @@ type TypeDefinition
     | TaggedUnionType (List Type) (Dict String (List Type))
 
 
-type NameDefinition
-    = Input Type
-    | Value Expression
-
-
 type alias Context =
     { types : Dict String TypeDefinition
-    , names : Dict String NameDefinition
+    , names : Dict String Expression
     , result : Result Error Expression
     }
 
@@ -70,11 +64,11 @@ type Expression
     | Record (Dict String Expression) -- (x = 1, y = 3.14)
     | Constructor ( String, List Expression ) String (List Expression) -- (Maybe a).Just 42
     | Lambda ( String, Type ) Expression -- (x : Int) -> x
-    | Load String Type -- (x : Int)
+    | Input String Type -- (x : Int)
+    | Call String Type Type (List Expression) -- f : Int -> Int -> Int ; f 1 2
 
 
 
--- | Call String Expression Expression -- ((x : Int) -> x) 42
 -- | Match String (List ( Pattern, Context -> Context )) Type
 
 
@@ -220,7 +214,7 @@ saveName name value context =
 
         Nothing ->
             { context
-                | names = Dict.insert name (Value value) context.names
+                | names = Dict.insert name value context.names
             }
 
 
@@ -250,7 +244,7 @@ saveInput name typ context =
 
         Nothing ->
             { context
-                | names = Dict.insert name (Input typ) context.names
+                | names = Dict.insert name (Input name typ) context.names
             }
 
 
@@ -382,10 +376,7 @@ withPattern pattern input context =
 load : String -> Context -> Context
 load name context =
     case Dict.get name context.names of
-        Just (Input typ) ->
-            succeed (Load name typ) context
-
-        Just (Value value) ->
+        Just value ->
             succeed value context
 
         Nothing ->
@@ -424,8 +415,14 @@ evaluate expression context =
         Lambda input output ->
             lambda input (evaluate output) context
 
-        Load name typ ->
+        Input name typ ->
             load name context |> andThen (typecheck typ)
+
+        Call name inputType outputType input ->
+            -- callLambda (evaluate input)
+            --     (Input name (LambdaType inputType outputType))
+            --     context
+            Debug.todo "evaluate Call"
 
 
 
@@ -584,30 +581,54 @@ validatedConstructor ( typeName, typeInputs ) name inputs context =
 
 call : List (Context -> Context) -> Expression -> Context -> Context
 call inputs expression context =
-    List.foldl
-        (\input -> andThen (callLambda input))
-        (succeed expression context)
-        inputs
-        |> andThen (\result _ -> succeed result context)
-        -- User experience: better error messages
-        |> orElse
-            (\ctx ->
-                case ( expression, ctx.result ) of
-                    ( Lambda _ _, Err (CallNonFunction _) ) ->
-                        evaluateMany inputs
-                            (\args -> fail (CallTooManyInputs expression args))
-                            ctx
+    let
+        countInputs typ =
+            case typ of
+                LambdaType _ outputType ->
+                    1 + countInputs outputType
 
-                    _ ->
-                        ctx
-            )
+                _ ->
+                    0
+    in
+    evaluateMany inputs
+        (\evalInputs ctx ->
+            case expression of
+                Lambda _ _ ->
+                    if List.length inputs > countInputs (getType expression) then
+                        fail (CallTooManyInputs expression evalInputs) ctx
+
+                    else
+                        List.foldl
+                            (\input -> andThen (callLambda input))
+                            (succeed expression ctx)
+                            evalInputs
+                            |> andThen (\result _ -> succeed result ctx)
+
+                Input name ((LambdaType inputType outputType) as typ) ->
+                    if List.length inputs > countInputs (getType expression) then
+                        fail (CallTooManyInputs expression evalInputs) ctx
+
+                    else
+                        load name ctx
+                            |> andThen (typecheck typ)
+                            |> followedBy
+                                (succeed (Call name inputType outputType evalInputs))
+
+                _ ->
+                    if List.isEmpty inputs then
+                        evaluate expression ctx
+
+                    else
+                        fail (CallNonFunction expression) ctx
+        )
+        context
 
 
-callLambda : (Context -> Context) -> Expression -> Context -> Context
+callLambda : Expression -> Expression -> Context -> Context
 callLambda input expression context =
     case expression of
         Lambda ( inputName, inputType ) output ->
-            input context
+            succeed input context
                 |> andThen (typecheck inputType)
                 |> andThen (saveName inputName)
                 |> followedBy (evaluate output)
@@ -622,11 +643,17 @@ callLambda input expression context =
 
 matchInto : Type -> List ( Pattern, Context -> Context ) -> Expression -> Context -> Context
 matchInto outputType cases input context =
-    List.foldl
-        (matchCase outputType input)
-        (withoutResult context)
-        cases
-        |> ifNoResult (fail (MatchMissingCases (List.map Tuple.first cases)))
+    case input of
+        Input name typ ->
+            load name context
+                |> andThen (typecheck typ)
+
+        _ ->
+            List.foldl
+                (matchCase outputType input)
+                (withoutResult context)
+                cases
+                |> ifNoResult (fail (MatchMissingCases (List.map Tuple.first cases)))
 
 
 matchCase : Type -> Expression -> ( Pattern, Context -> Context ) -> Context -> Context
@@ -750,8 +777,11 @@ getType expression =
         Lambda ( _, inputType ) output ->
             LambdaType inputType (getType output)
 
-        Load _ typ ->
+        Input _ typ ->
             typ
+
+        Call name inputType outputType input ->
+            Debug.todo "getType Call"
 
 
 

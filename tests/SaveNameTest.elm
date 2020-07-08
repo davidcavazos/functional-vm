@@ -50,7 +50,7 @@ suite =
                     |> saveInput "x" IntType
                     |> saveName "x" (Integer 2)
                     |> dump
-                    |> Expect.equal "I x=Int;E NameAlreadyExists x"
+                    |> Expect.equal "V x=(x:Int);E NameAlreadyExists x"
 
         --
         , test "many definitions" <|

@@ -14,7 +14,6 @@ type Prefix
     | TaggedUnionTypePrefix
     | BoundGenericPrefix
       -- NameDefinition
-    | InputPrefix
     | ValuePrefix
       -- Result
     | ResultPrefix
@@ -32,9 +31,6 @@ dumpPrefix prefix =
 
         TaggedUnionTypePrefix ->
             "T "
-
-        InputPrefix ->
-            "I "
 
         ValuePrefix ->
             "V "
@@ -89,14 +85,9 @@ dumpTypeDefinition ( name, typeDefinition ) =
                     (Dict.toList constructors)
 
 
-dumpNameDefinition : ( String, NameDefinition ) -> String
-dumpNameDefinition ( name, nameDefinition ) =
-    case nameDefinition of
-        Input typ ->
-            dumpPrefix InputPrefix ++ name ++ "=" ++ dumpType typ
-
-        Value value ->
-            dumpPrefix ValuePrefix ++ name ++ "=" ++ dumpExpression value
+dumpNameDefinition : ( String, Expression ) -> String
+dumpNameDefinition ( name, value ) =
+    dumpPrefix ValuePrefix ++ name ++ "=" ++ dumpExpression value
 
 
 dumpContextResult : Result Error Expression -> List String
@@ -153,10 +144,15 @@ dumpExpression expression =
             toString (toString typeName typeInputs ++ "." ++ name) values
 
         Lambda ( inputName, inputType ) output ->
-            dumpExpression (Load inputName inputType) ++ "->" ++ dumpExpression output
+            dumpExpression (Input inputName inputType) ++ "->" ++ dumpExpression output
 
-        Load name typ ->
+        Input name typ ->
             "(" ++ name ++ ":" ++ dumpType typ ++ ")"
+
+        Call name inputType outputType inputs ->
+            dumpExpression (Input name (LambdaType inputType outputType))
+                ++ " "
+                ++ String.join " " (List.map dumpExpression inputs)
 
 
 

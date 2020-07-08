@@ -14,7 +14,7 @@ suite =
                 new
                     |> lambda ( "x", IntType ) (load "y")
                     |> dump
-                    |> Expect.equal "I x=Int;E NameNotFound y"
+                    |> Expect.equal "V x=(x:Int);E NameNotFound y"
 
         --
         , test "using existing input" <|
