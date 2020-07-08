@@ -1,4 +1,4 @@
-module MatchIntoTest exposing (suite)
+module MatchConstantTest exposing (suite)
 
 import Expect
 import FVM exposing (Pattern(..), Type(..), andThen, int, load, matchInto, new, number)
@@ -8,7 +8,7 @@ import Test exposing (Test, describe, test)
 
 suite : Test
 suite =
-    describe "matchInto"
+    describe "matchInto with constant values"
         [ test "MatchMissingCases with empty cases" <|
             \_ ->
                 new

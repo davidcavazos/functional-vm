@@ -325,28 +325,27 @@ withPattern pattern input context =
 
             else
                 List.foldl
-                    (\( pItem, item ) prevCtx ->
-                        prevCtx
+                    (\( pItem, item ) ctx ->
+                        ctx
                             |> andThen (\_ -> withPattern pItem item)
                             |> andThen (\got -> ifThen (got /= item) withoutResult)
                     )
-                    (tuple [] context)
+                    (evaluate input context)
                     (zip pItems items)
                     |> andThen (\_ -> evaluate input)
                     |> andThen (saveMaybeName maybeName)
 
         ( RecordPattern pItems maybeName, Record items ) ->
             Dict.foldl
-                (\pName pItem prevCtx ->
+                (\pName pItem ctx ->
                     case Dict.get pName items of
                         Just item ->
-                            withPattern pItem item prevCtx
-                                |> andThen (saveName pName)
+                            withPattern pItem item ctx
 
                         Nothing ->
-                            fail (MatchPatternTypeMismatch input pattern) prevCtx
+                            fail (MatchPatternTypeMismatch input pattern) ctx
                 )
-                (record Dict.empty context)
+                (evaluate input context)
                 pItems
                 |> andThen (\_ -> evaluate input)
                 |> andThen (saveMaybeName maybeName)
@@ -356,12 +355,21 @@ withPattern pattern input context =
                 fail (MatchPatternTypeMismatch input pattern) context
 
             else
-                evaluate input context
+                List.foldl
+                    (\( pInput, ctorInput ) ctx ->
+                        ctx
+                            |> andThen (\_ -> withPattern pInput ctorInput)
+                            |> andThen (\got -> ifThen (got /= ctorInput) withoutResult)
+                    )
+                    (evaluate input context)
+                    (zip pInputs inputs)
+                    |> andThen (\_ -> evaluate input)
+                    |> andThen (saveMaybeName maybeName)
 
         ( AnythingPattern maybeName, _ ) ->
             context
-                |> saveMaybeName maybeName input
                 |> evaluate input
+                |> andThen (saveMaybeName maybeName)
 
         _ ->
             fail (MatchPatternTypeMismatch input pattern) context
@@ -392,7 +400,6 @@ evaluate : Expression -> Context -> Context
 evaluate expression context =
     case expression of
         Type _ ->
-            -- TODO: make a wrapper function for Type
             succeed expression context
 
         Integer value ->
@@ -483,7 +490,6 @@ tuple items context =
 
 record : Dict String (Context -> Context) -> Context -> Context
 record items context =
-    -- TODO: use evaluateMany
     let
         ( resultItems, resultContext ) =
             Dict.foldl
