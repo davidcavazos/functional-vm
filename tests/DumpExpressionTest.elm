@@ -1,9 +1,9 @@
 module DumpExpressionTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dumpExpression)
 import Dict
 import Expect
+import FVM exposing (Expression(..), Type(..))
+import FVM.Bitcode exposing (dumpExpression)
 import Test exposing (Test, describe, test)
 
 
@@ -64,24 +64,6 @@ suite =
                 dumpExpression (Record (Dict.fromList [ ( "x", Integer 42 ), ( "y", Number 3.14 ) ]))
                     |> Expect.equal "{x=42,y=3.14}"
 
-        -- Input
-        , test "Input: x with type Int" <|
-            \_ ->
-                dumpExpression (Input "x" IntType)
-                    |> Expect.equal "x"
-
-        -- Lambda
-        , test "Lambda: (x : Int) -> 42" <|
-            \_ ->
-                dumpExpression (Lambda ( "x", IntType ) (Integer 42))
-                    |> Expect.equal "(x:Int)->42"
-
-        --
-        , test "Lambda: (x : Int) -> (y : Number) -> 42" <|
-            \_ ->
-                dumpExpression (Lambda ( "x", IntType ) (Lambda ( "y", NumberType ) (Integer 42)))
-                    |> Expect.equal "(x:Int)->(y:Number)->42"
-
         -- Constructor
         , test "Constructor: Bool.True" <|
             \_ ->
@@ -105,4 +87,22 @@ suite =
             \_ ->
                 dumpExpression (Constructor ( "Vec", [ Integer 2, Type IntType ] ) "Vec2" [ Integer 1, Integer 2 ])
                     |> Expect.equal "((Vec 2 Int).Vec2 1 2)"
+
+        -- Lambda
+        , test "Lambda: (x : Int) -> 42" <|
+            \_ ->
+                dumpExpression (Lambda ( "x", IntType ) (Integer 42))
+                    |> Expect.equal "(x:Int)->42"
+
+        --
+        , test "Lambda: (x : Int) -> (y : Number) -> 42" <|
+            \_ ->
+                dumpExpression (Lambda ( "x", IntType ) (Lambda ( "y", NumberType ) (Integer 42)))
+                    |> Expect.equal "(x:Int)->(y:Number)->42"
+
+        -- Load
+        , test "Load: x with type Int" <|
+            \_ ->
+                dumpExpression (Load "x" IntType)
+                    |> Expect.equal "(x:Int)"
         ]

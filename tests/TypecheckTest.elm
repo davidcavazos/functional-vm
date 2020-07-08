@@ -1,9 +1,9 @@
 module TypecheckTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
+import Dict
 import Expect
+import FVM exposing (Expression(..), Type(..), new, saveTaggedUnionType, typecheck)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 
@@ -80,7 +80,7 @@ suite =
         , test "TypeInputsMismatch with too many type inputs" <|
             \_ ->
                 new
-                    |> withType "T" []
+                    |> saveTaggedUnionType ( "T", [] ) Dict.empty
                     |> typecheck (NamedType "T" [ Integer 1 ]) (Constructor ( "T", [ Integer 1 ] ) "A" [])
                     |> dump
                     |> Expect.equal "T T;E TypeInputsMismatch T"
@@ -89,7 +89,7 @@ suite =
         , test "TypeInputsMismatch with too few type inputs" <|
             \_ ->
                 new
-                    |> withType "T" [ IntType ]
+                    |> saveTaggedUnionType ( "T", [ IntType ] ) Dict.empty
                     |> typecheck (NamedType "T" []) (Constructor ( "T", [] ) "A" [])
                     |> dump
                     |> Expect.equal "T T Int;E TypeInputsMismatch T"
@@ -98,7 +98,7 @@ suite =
         , test "TypeInputsMismatch with type mismatch" <|
             \_ ->
                 new
-                    |> withType "T" [ IntType ]
+                    |> saveTaggedUnionType ( "T", [ IntType ] ) Dict.empty
                     |> typecheck (NamedType "T" [ Number 3.14 ]) (Constructor ( "T", [ Number 3.14 ] ) "A" [])
                     |> dump
                     |> Expect.equal "T T Int;E TypeInputsMismatch T"
@@ -107,7 +107,7 @@ suite =
         , test "with type inputs" <|
             \_ ->
                 new
-                    |> withType "T" [ IntType ]
+                    |> saveTaggedUnionType ( "T", [ IntType ] ) Dict.empty
                     |> typecheck (NamedType "T" [ Integer 1 ]) (Constructor ( "T", [ Integer 1 ] ) "A" [])
                     |> dump
                     |> Expect.equal "T T Int"

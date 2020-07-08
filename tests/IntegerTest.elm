@@ -1,9 +1,8 @@
 module IntegerTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
 import Expect
+import FVM exposing (int, new)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 

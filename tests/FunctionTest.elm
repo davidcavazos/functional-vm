@@ -1,9 +1,8 @@
 module FunctionTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
 import Expect
+import FVM exposing (Type(..), function, int, load, new)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 
@@ -23,7 +22,7 @@ suite =
                 new
                     |> function [ ( "x", IntType ) ] (load "x")
                     |> dump
-                    |> Expect.equal "R (x:Int)->x"
+                    |> Expect.equal "R (x:Int)->(x:Int)"
 
         --
         , test "3 inputs" <|
@@ -31,5 +30,5 @@ suite =
                 new
                     |> function [ ( "x", IntType ), ( "y", NumberType ), ( "z", TupleType [] ) ] (load "z")
                     |> dump
-                    |> Expect.equal "R (x:Int)->(y:Number)->(z:())->z"
+                    |> Expect.equal "R (x:Int)->(y:Number)->(z:())->(z:())"
         ]

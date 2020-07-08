@@ -1,9 +1,8 @@
 module LambdaTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
 import Expect
+import FVM exposing (Type(..), lambda, load, new)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 
@@ -23,5 +22,5 @@ suite =
                 new
                     |> lambda ( "x", IntType ) (load "x")
                     |> dump
-                    |> Expect.equal "R (x:Int)->x"
+                    |> Expect.equal "R (x:Int)->(x:Int)"
         ]

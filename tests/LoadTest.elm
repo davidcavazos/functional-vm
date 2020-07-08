@@ -1,9 +1,8 @@
 module LoadTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
 import Expect
+import FVM exposing (Expression(..), Type(..), load, new, saveInput, saveName)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 
@@ -21,17 +20,17 @@ suite =
         , test "defined name" <|
             \_ ->
                 new
-                    |> withName "x" (Integer 1)
+                    |> saveName "x" (Integer 1)
                     |> load "x"
                     |> dump
-                    |> Expect.equal "N x=1;R 1"
+                    |> Expect.equal "V x=1;R 1"
 
         --
         , test "defined input" <|
             \_ ->
                 new
-                    |> withInput "x" IntType
+                    |> saveInput "x" IntType
                     |> load "x"
                     |> dump
-                    |> Expect.equal "I x=Int;R x"
+                    |> Expect.equal "I x=Int;R (x:Int)"
         ]

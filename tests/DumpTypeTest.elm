@@ -1,9 +1,9 @@
 module DumpTypeTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dumpType)
 import Dict
 import Expect
+import FVM exposing (Expression(..), Type(..))
+import FVM.Bitcode exposing (dumpType)
 import Test exposing (Test, describe, test)
 
 

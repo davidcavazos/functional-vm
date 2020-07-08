@@ -1,9 +1,9 @@
 module RecordTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
+import Dict
 import Expect
+import FVM exposing (int, load, new, record)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 
@@ -13,7 +13,7 @@ suite =
         [ test "0 items" <|
             \_ ->
                 new
-                    |> record []
+                    |> record Dict.empty
                     |> dump
                     |> Expect.equal "R {}"
 
@@ -21,7 +21,7 @@ suite =
         , test "NameNotFound with 1 item" <|
             \_ ->
                 new
-                    |> record [ ( "x", load "x" ) ]
+                    |> record (Dict.fromList [ ( "x", load "x" ) ])
                     |> dump
                     |> Expect.equal "E NameNotFound x"
 
@@ -29,7 +29,7 @@ suite =
         , test "1 item" <|
             \_ ->
                 new
-                    |> record [ ( "x", int 1 ) ]
+                    |> record (Dict.fromList [ ( "x", int 1 ) ])
                     |> dump
                     |> Expect.equal "R {x=1}"
 
@@ -37,7 +37,10 @@ suite =
         , test "3 items" <|
             \_ ->
                 new
-                    |> record [ ( "x", int 1 ), ( "y", int 2 ), ( "z", int 3 ) ]
+                    |> record
+                        (Dict.fromList
+                            [ ( "x", int 1 ), ( "y", int 2 ), ( "z", int 3 ) ]
+                        )
                     |> dump
                     |> Expect.equal "R {x=1,y=2,z=3}"
         ]

@@ -1,19 +1,22 @@
-module Bitcode exposing
+module FVM.Bitcode exposing
     ( dump
     , dumpExpression
     , dumpType
     )
 
-import AST exposing (..)
-import Context exposing (Context)
-import Dict exposing (Dict)
+import Dict
+import FVM exposing (..)
 
 
 type Prefix
-    = TypePrefix
-    | NamePrefix
+    = -- TypeDefinition
+      TypeAliasPrefix
+    | TaggedUnionTypePrefix
+    | BoundGenericPrefix
+      -- NameDefinition
     | InputPrefix
-    | GenericPrefix
+    | ValuePrefix
+      -- Result
     | ResultPrefix
     | ErrorPrefix
 
@@ -21,17 +24,20 @@ type Prefix
 dumpPrefix : Prefix -> String
 dumpPrefix prefix =
     case prefix of
-        TypePrefix ->
-            "T "
+        TypeAliasPrefix ->
+            "A "
 
-        NamePrefix ->
-            "N "
+        BoundGenericPrefix ->
+            "G "
+
+        TaggedUnionTypePrefix ->
+            "T "
 
         InputPrefix ->
             "I "
 
-        GenericPrefix ->
-            "G "
+        ValuePrefix ->
+            "V "
 
         ResultPrefix ->
             "R "
@@ -48,17 +54,15 @@ dump : Context -> String
 dump context =
     String.join ";"
         (List.concat
-            [ List.map dumpContextType (Dict.toList context.types)
-            , List.map dumpContextName (Dict.toList context.names)
-            , List.map dumpContextInput (Dict.toList context.inputs)
-            , List.map dumpContextGeneric (Dict.toList context.generics)
+            [ List.map dumpTypeDefinition (Dict.toList context.types)
+            , List.map dumpNameDefinition (Dict.toList context.names)
             , dumpContextResult context.result
             ]
         )
 
 
-dumpContextType : ( String, ( List Type, List String ) ) -> String
-dumpContextType ( name, ( inputTypes, constructors ) ) =
+dumpTypeDefinition : ( String, TypeDefinition ) -> String
+dumpTypeDefinition ( name, typeDefinition ) =
     let
         dumpMany : String -> (a -> String) -> String -> List a -> String
         dumpMany separator f delimiter items =
@@ -68,25 +72,31 @@ dumpContextType ( name, ( inputTypes, constructors ) ) =
             else
                 separator ++ String.join delimiter (List.map f items)
     in
-    dumpPrefix TypePrefix
-        ++ name
-        ++ dumpMany " " dumpType " " inputTypes
-        ++ dumpMany "=" (\n -> n) "|" constructors
+    case typeDefinition of
+        TypeAlias _ ->
+            Debug.todo "dumpTypeDefinition TypeAlias"
+
+        BoundGeneric typ ->
+            dumpPrefix BoundGenericPrefix ++ name ++ "=" ++ dumpType typ
+
+        TaggedUnionType inputTypes constructors ->
+            dumpPrefix TaggedUnionTypePrefix
+                ++ name
+                ++ dumpMany " " dumpType " " inputTypes
+                ++ dumpMany "="
+                    (\( n, ctrs ) -> n ++ dumpMany " " dumpType " " ctrs)
+                    "|"
+                    (Dict.toList constructors)
 
 
-dumpContextName : ( String, Expression ) -> String
-dumpContextName ( name, value ) =
-    dumpPrefix NamePrefix ++ name ++ "=" ++ dumpExpression value
+dumpNameDefinition : ( String, NameDefinition ) -> String
+dumpNameDefinition ( name, nameDefinition ) =
+    case nameDefinition of
+        Input typ ->
+            dumpPrefix InputPrefix ++ name ++ "=" ++ dumpType typ
 
-
-dumpContextInput : ( String, Type ) -> String
-dumpContextInput ( name, typ ) =
-    dumpPrefix InputPrefix ++ name ++ "=" ++ dumpType typ
-
-
-dumpContextGeneric : ( String, Type ) -> String
-dumpContextGeneric ( name, typ ) =
-    dumpPrefix GenericPrefix ++ name ++ "=" ++ dumpType typ
+        Value value ->
+            dumpPrefix ValuePrefix ++ name ++ "=" ++ dumpExpression value
 
 
 dumpContextResult : Result Error Expression -> List String
@@ -130,12 +140,6 @@ dumpExpression expression =
                     )
                 ++ "}"
 
-        Input name _ ->
-            name
-
-        Lambda ( inputName, inputType ) output ->
-            "(" ++ inputName ++ ":" ++ dumpType inputType ++ ")->" ++ dumpExpression output
-
         Constructor ( typeName, typeInputs ) name values ->
             let
                 toString : String -> List Expression -> String
@@ -147,6 +151,12 @@ dumpExpression expression =
                         "(" ++ nam ++ " " ++ String.join " " (List.map dumpExpression args) ++ ")"
             in
             toString (toString typeName typeInputs ++ "." ++ name) values
+
+        Lambda ( inputName, inputType ) output ->
+            dumpExpression (Load inputName inputType) ++ "->" ++ dumpExpression output
+
+        Load name typ ->
+            "(" ++ name ++ ":" ++ dumpType typ ++ ")"
 
 
 
@@ -213,11 +223,32 @@ dumpError error =
         NoResult ->
             ""
 
+        CallNonFunction expr ->
+            "CallNonFunction " ++ dumpExpression expr
+
         CallTooManyInputs expr inputs ->
             "CallTooManyInputs " ++ dumpExpression expr
 
-        CaseWithoutPatterns expr ->
-            "CaseWithoutPatterns " ++ dumpExpression expr
+        ConstructorInputsMismatch typeName name { got, expected } ->
+            "ConstructorInputsMismatch " ++ typeName ++ " " ++ name
+
+        ConstructorNotFound typeName name ->
+            "ConstructorNotFound " ++ typeName ++ " " ++ name
+
+        ConstructorNotOfTaggedUnionType typeName tdef ->
+            "ConstructorNotOfTaggedUnionType " ++ typeName
+
+        MatchCaseAlreadyCovered pattern ->
+            "MatchCaseAlreadyCovered"
+
+        MatchConstructorNotFound ( typeName, typeInputs ) name ->
+            "MatchConstructorNotFound"
+
+        MatchMissingCases patterns ->
+            "MatchMissingCases"
+
+        MatchPatternTypeMismatch expression pattern ->
+            "MatchPatternTypeMismatch " ++ dumpExpression expression
 
         NameAlreadyExists name ->
             "NameAlreadyExists " ++ name
@@ -225,7 +256,7 @@ dumpError error =
         NameNotFound name ->
             "NameNotFound " ++ name
 
-        TypeAlreadyExists name ->
+        TypeAlreadyExists name tdef ->
             "TypeAlreadyExists " ++ name
 
         TypeInputsMismatch typeName { got, expected } ->

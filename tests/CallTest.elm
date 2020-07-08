@@ -1,9 +1,8 @@
 module CallTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
 import Expect
+import FVM exposing (Type(..), andThen, call, function, int, load, new, number, tuple)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 
@@ -19,13 +18,13 @@ suite =
                     |> Expect.equal "R 1"
 
         --
-        , test "CallTooManyInputs" <|
+        , test "CallNonFunction" <|
             \_ ->
                 new
                     |> int 1
                     |> andThen (call [ int 2 ])
                     |> dump
-                    |> Expect.equal "E CallTooManyInputs 1"
+                    |> Expect.equal "E CallNonFunction 1"
 
         --
         , test "1 input ignoring the input" <|
@@ -61,7 +60,7 @@ suite =
                     |> function [ ( "x", IntType ) ] (load "x")
                     |> andThen (call [ int 1, int 2 ])
                     |> dump
-                    |> Expect.equal "N x=1;E CallTooManyInputs (x:Int)->x"
+                    |> Expect.equal "V x=1;E CallTooManyInputs (x:Int)->(x:Int)"
 
         --
         , test "call with too few inputs" <|
@@ -71,5 +70,5 @@ suite =
                         (tuple [ load "x", load "y", load "z" ])
                     |> andThen (call [ int 1 ])
                     |> dump
-                    |> Expect.equal "R (y:Number)->(z:Int)->(1,y,z)"
+                    |> Expect.equal "R (y:Number)->(z:Int)->(1,(y:Number),(z:Int))"
         ]

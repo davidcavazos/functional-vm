@@ -1,19 +1,18 @@
-module WithInputTest exposing (suite)
+module SaveInputTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
 import Expect
+import FVM exposing (Error(..), Expression(..), Type(..), new, saveInput, saveName, withResult)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 
 suite : Test
 suite =
-    describe "Context withInput"
+    describe "saveInput"
         [ test "after no result" <|
             \_ ->
                 new
-                    |> withInput "x" IntType
+                    |> saveInput "x" IntType
                     |> dump
                     |> Expect.equal "I x=Int"
 
@@ -22,7 +21,7 @@ suite =
             \_ ->
                 new
                     |> withResult (Ok (Integer 1))
-                    |> withInput "x" IntType
+                    |> saveInput "x" IntType
                     |> dump
                     |> Expect.equal "I x=Int;R 1"
 
@@ -31,7 +30,7 @@ suite =
             \_ ->
                 new
                     |> withResult (Err (NameNotFound "x"))
-                    |> withInput "y" IntType
+                    |> saveInput "y" IntType
                     |> dump
                     |> Expect.equal "I y=Int;E NameNotFound x"
 
@@ -39,8 +38,8 @@ suite =
         , test "NameAlreadyExists with name" <|
             \_ ->
                 new
-                    |> withInput "x" IntType
-                    |> withInput "x" IntType
+                    |> saveInput "x" IntType
+                    |> saveInput "x" IntType
                     |> dump
                     |> Expect.equal "I x=Int;E NameAlreadyExists x"
 
@@ -48,17 +47,17 @@ suite =
         , test "NameAlreadyExists with input" <|
             \_ ->
                 new
-                    |> withName "x" (Integer 1)
-                    |> withInput "x" IntType
+                    |> saveName "x" (Integer 1)
+                    |> saveInput "x" IntType
                     |> dump
-                    |> Expect.equal "N x=1;E NameAlreadyExists x"
+                    |> Expect.equal "V x=1;E NameAlreadyExists x"
 
         --
         , test "many definitions" <|
             \_ ->
                 new
-                    |> withInput "x" IntType
-                    |> withInput "y" IntType
+                    |> saveInput "x" IntType
+                    |> saveInput "y" IntType
                     |> dump
                     |> Expect.equal "I x=Int;I y=Int"
         ]

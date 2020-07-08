@@ -1,9 +1,8 @@
 module ContextTest exposing (suite)
 
-import AST exposing (..)
-import Bitcode exposing (dump)
-import Context exposing (..)
 import Expect
+import FVM exposing (Error(..), Expression(..), andThen, fail, followedBy, new, orElse, succeed, withResult)
+import FVM.Bitcode exposing (dump)
 import Test exposing (Test, describe, test)
 
 

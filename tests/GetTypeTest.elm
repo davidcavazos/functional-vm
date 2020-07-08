@@ -1,9 +1,8 @@
 module GetTypeTest exposing (suite)
 
-import AST exposing (..)
-import Context exposing (..)
 import Dict
 import Expect
+import FVM exposing (Expression(..), Type(..), getType)
 import Test exposing (Test, describe, test)
 
 
@@ -52,10 +51,10 @@ suite =
                 getType (Record (Dict.fromList [ ( "x", Integer 1 ), ( "y", Number 3.14 ) ]))
                     |> Expect.equal (RecordType (Dict.fromList [ ( "x", IntType ), ( "y", NumberType ) ]))
 
-        -- Input
-        , test "with Input" <|
+        -- Load
+        , test "with Load" <|
             \_ ->
-                getType (Input "x" IntType)
+                getType (Load "x" IntType)
                     |> Expect.equal IntType
 
         -- Lambda
