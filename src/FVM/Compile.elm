@@ -1,40 +1,31 @@
 module FVM.Compile exposing
     ( checkTypeDefinition
-    , compile
+      -- , compile
     )
 
-import Dict
-import FVM exposing (Context, Error(..), Expression(..), Module, Type(..), TypeDefinition)
-import FVM.Context exposing (addVariable, getGeneric, getVariable)
-import FVM.Expression exposing (evaluate)
-import FVM.Module exposing (getType)
-import FVM.Type exposing (checkType)
-import FVM.Util exposing (mapDict, mapList)
+import FVM exposing (Error(..), Expression(..), Module, Type(..), TypeDefinition)
+import FVM.Util exposing (andThenDict, andThenList)
+import FVM.Validate exposing (checkT)
 import Result
 
 
 
 -- COMPILE
-
-
-compile : Module -> Module
-compile mod =
-    let
-        check : (a -> Context -> Module -> Result Error a) -> Module -> String -> Result Error a -> Result Error a
-        check f m name result =
-            Result.andThen (\x -> f x FVM.Context.new m) result
-    in
-    mod
-        |> (\m -> { m | types = Dict.map (check checkTypeDefinition m) m.types })
-        |> (\m -> { m | values = Dict.map (check evaluate m) m.values })
-
-
-
+-- compile : Module -> Module
+-- compile mod =
+--     let
+--         check : (a -> Module -> Result Error a) -> Module -> String -> Result Error a -> Result Error a
+--         check f m name result =
+--             Result.andThen (\x -> f x m) result
+--     in
+--     mod
+--         |> (\m -> { m | types = Dict.map (check checkTDefinition m) m.types })
+--         |> (\m -> { m | names = Dict.map (check evaluate m) m.names })
 -- CHECK TYPE DEFINITION
 
 
-checkTypeDefinition : TypeDefinition -> Context -> Module -> Result Error TypeDefinition
-checkTypeDefinition ( typeInputTypes, constructors ) ctx m =
+checkTypeDefinition : TypeDefinition -> Module -> Result Error TypeDefinition
+checkTypeDefinition ( typeInputTypes, constructors ) m =
     Result.map2 (\typeInputs ctors -> ( typeInputs, ctors ))
-        (mapList checkType typeInputTypes ctx m)
-        (mapDict (\_ -> mapList checkType) constructors ctx m)
+        (andThenList (\t -> checkT t m) typeInputTypes)
+        (andThenDict (\_ -> andThenList (\t -> checkT t m)) constructors)
