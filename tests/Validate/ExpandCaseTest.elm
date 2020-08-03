@@ -280,7 +280,7 @@ suite =
                         |> addType ( "T", [] )
                             (Dict.fromList
                                 [ ( "A", ( [ ( "x", IntT ) ], [] ) )
-                                , ( "B", ( [], [] ) )
+                                , ( "B", ( [ ( "x", IntT ) ], [] ) )
                                 ]
                             )
                         |> Result.andThen
@@ -290,7 +290,7 @@ suite =
                         |> Expect.equal
                             (Ok
                                 [ ConstructorC ( "T", [] ) "A" [ AnyC IntT ]
-                                , ConstructorC ( "T", [] ) "B" []
+                                , ConstructorC ( "T", [] ) "B" [ AnyC IntT ]
                                 ]
                             )
 
@@ -301,14 +301,14 @@ suite =
                         |> addType ( "T", [] )
                             (Dict.fromList
                                 [ ( "A", ( [ ( "x", IntT ) ], [] ) )
-                                , ( "B", ( [], [] ) )
+                                , ( "B", ( [ ( "x", IntT ) ], [] ) )
                                 ]
                             )
                         |> Result.andThen
                             (expandCase (ConstructorP ( "T", [] ) "A" [ AnyP IntT ])
                                 (AnyC (NameT "T" []))
                             )
-                        |> Expect.equal (Ok [ ConstructorC ( "T", [] ) "B" [] ])
+                        |> Expect.equal (Ok [ ConstructorC ( "T", [] ) "B" [ AnyC IntT ] ])
 
             --
             , test "with input recursive value -- type T = A T | B; T.A T.B on _ : T -- ok" <|
@@ -332,19 +332,19 @@ suite =
                             )
 
             --
-            , test "with input recursive any -- type T = A T | B; T.A (_ : T) on _ : T -- ok" <|
+            , test "with input recursive any -- type T = A T | B T; T.A (_ : T) on _ : T -- ok" <|
                 \_ ->
                     FVM.Module.new
                         |> addType ( "T", [] )
                             (Dict.fromList
                                 [ ( "A", ( [ ( "x", NameT "T" [] ) ], [] ) )
-                                , ( "B", ( [], [] ) )
+                                , ( "B", ( [ ( "x", NameT "T" [] ) ], [] ) )
                                 ]
                             )
                         |> Result.andThen
                             (expandCase (ConstructorP ( "T", [] ) "A" [ AnyP (NameT "T" []) ])
                                 (AnyC (NameT "T" []))
                             )
-                        |> Expect.equal (Ok [ ConstructorC ( "T", [] ) "B" [] ])
+                        |> Expect.equal (Ok [ ConstructorC ( "T", [] ) "B" [ AnyC (NameT "T" []) ] ])
             ]
         ]
