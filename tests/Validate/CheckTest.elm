@@ -221,13 +221,6 @@ suite =
                         |> Expect.equal (Err (NameNotFound "x"))
 
             --
-            , test "1 x -- NameNotFound on input" <|
-                \_ ->
-                    FVM.Module.new
-                        |> check (Call (Int 1) (Load "x"))
-                        |> Expect.equal (Err (NameNotFound "x"))
-
-            --
             , test "1 2 -- CallNonFunction" <|
                 \_ ->
                     FVM.Module.new
@@ -235,6 +228,13 @@ suite =
                         |> Expect.equal (Err (CallNonFunction (Int 1) (Int 2)))
 
             -- Call Lambda
+            , test "((x : Int) -> x) y -- NameNotFound on input" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check (Call (Lambda ( "x", IntT ) (Load "x")) (Load "y"))
+                        |> Expect.equal (Err (NameNotFound "y"))
+
+            --
             , test "((x : Int) -> x) 1.1 -- TypeMismatch on input" <|
                 \_ ->
                     FVM.Module.new
@@ -256,6 +256,13 @@ suite =
                         |> Expect.equal (Err (CallNonFunction (Input IntT) (Int 1)))
 
             --
+            , test "(Int -> Number) x -- NameNotFound on input" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check (Call (Input (LambdaT IntT NumberT)) (Load "x"))
+                        |> Expect.equal (Err (NameNotFound "x"))
+
+            --
             , test "(Int -> Number) 1.1 -- TypeMismatch" <|
                 \_ ->
                     FVM.Module.new
@@ -268,6 +275,61 @@ suite =
                     FVM.Module.new
                         |> check (Call (Input (LambdaT IntT NumberT)) (Int 1))
                         |> Expect.equal (Ok (Call (Input (LambdaT IntT NumberT)) (Int 1)))
+
+            -- Call with generic types
+            , test "(a -> Number) 1 -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check
+                            (Call (Input (LambdaT (GenericT "a") NumberT))
+                                (Int 1)
+                            )
+                        |> Expect.equal (Ok (Call (Input (LambdaT (GenericT "a") NumberT)) (Int 1)))
+
+            --
+            , test "(a -> a -> Number) 1 2.2 -- TypeMismatch" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check
+                            (Call
+                                (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT)))
+                                    (Int 1)
+                                )
+                                (Number 2.2)
+                            )
+                        |> Expect.equal (Err (TypeMismatch (Number 2.2) IntT))
+
+            --
+            , test "(a -> a -> a -> Number) 1 2 3.3 -- TypeMismatch" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check
+                            (Call
+                                (Call
+                                    (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT))))
+                                        (Int 1)
+                                    )
+                                    (Int 2)
+                                )
+                                (Number 3.3)
+                            )
+                        |> Expect.equal (Err (TypeMismatch (Number 3.3) IntT))
+
+            --
+            , test "(a -> a -> a -> Number) 1 2 3 -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check
+                            (Call
+                                (Call
+                                    (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT))))
+                                        (Int 1)
+                                    )
+                                    (Int 2)
+                                )
+                                (Int 3)
+                            )
+                        |> Expect.equal (Ok (Call (Call (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT)))) (Int 1)) (Int 2)) (Int 3)))
             ]
 
         -- CaseOf

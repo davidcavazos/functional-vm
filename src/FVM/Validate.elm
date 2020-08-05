@@ -10,7 +10,7 @@ module FVM.Validate exposing
     , typecheckP
     )
 
-import Dict
+import Dict exposing (Dict)
 import FVM exposing (Case(..), Error(..), Expression(..), Module, Pattern(..), Type(..))
 import FVM.Module exposing (addName, getName, getTypeDefinition)
 import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
@@ -139,29 +139,9 @@ check expression m =
                     (addName inputName (Input inputT) m)
                 )
 
-        Call function input ->
-            andThen2
-                (\_ _ ->
-                    case ( function, typeOf function m ) of
-                        ( Lambda ( inputName, inputT ) output, _ ) ->
-                            Result.map2 (\_ _ -> expression)
-                                (typecheck input inputT m)
-                                (Result.andThen (check output)
-                                    (addName inputName input m)
-                                )
-
-                        ( _, Ok (LambdaT inputT _) ) ->
-                            Result.map (\_ -> expression)
-                                (typecheck input inputT m)
-
-                        ( _, Ok _ ) ->
-                            Err (CallNonFunction function input)
-
-                        ( _, Err e ) ->
-                            Err e
-                )
-                (check function m)
-                (check input m)
+        Call _ _ ->
+            Result.map (\_ -> expression)
+                (checkCall expression Dict.empty m)
 
         CaseOf ( input, outputT ) cases ->
             andThen2
@@ -190,6 +170,39 @@ check expression m =
                 )
                 (typeOf input m)
                 (checkT outputT m)
+
+
+checkCall : Expression -> Dict String Type -> Module -> Result Error (Dict String Type)
+checkCall expression generics m =
+    case expression of
+        Call function input ->
+            Result.andThen
+                (\gs ->
+                    case typeOf function m of
+                        Ok (LambdaT (GenericT name) _) ->
+                            case Dict.get name gs of
+                                Just t ->
+                                    Result.map (\_ -> gs)
+                                        (typecheck input t m)
+
+                                Nothing ->
+                                    Result.map (\t -> Dict.insert name t gs)
+                                        (typeOf input m)
+
+                        Ok (LambdaT inputT _) ->
+                            Result.map (\_ -> gs)
+                                (typecheck input inputT m)
+
+                        Ok _ ->
+                            Err (CallNonFunction function input)
+
+                        Err e ->
+                            Err e
+                )
+                (checkCall function generics m)
+
+        _ ->
+            Ok generics
 
 
 checkCase : Expression -> Type -> Type -> Module -> ( Pattern, Expression ) -> Result Error ( List Pattern, List Case ) -> Result Error ( List Pattern, List Case )
@@ -291,9 +304,10 @@ typeOf expression m =
                         (getName name m)
 
                 Lambda ( inputName, inputT ) output ->
-                    Result.andThen
-                        (\mod -> Result.map (LambdaT inputT) (typeOf output mod))
-                        (addName inputName (Input inputT) m)
+                    Result.map (LambdaT inputT)
+                        (Result.andThen (typeOf output)
+                            (addName inputName (Input inputT) m)
+                        )
 
                 Tuple items ->
                     Result.map TupleT
@@ -304,15 +318,12 @@ typeOf expression m =
                         (andThenDict (\_ x -> typeOf x m) items)
 
                 Constructor ( typeName, typeInputs ) _ _ ->
-                    checkT (NameT typeName typeInputs) m
+                    Ok (NameT typeName typeInputs)
 
                 Call function input ->
                     case typeOf function m of
-                        Ok (LambdaT inputT outputT) ->
-                            Result.map3 (\_ _ t -> t)
-                                (checkT inputT m)
-                                (typecheck input inputT m)
-                                (checkT outputT m)
+                        Ok (LambdaT _ outputT) ->
+                            Ok outputT
 
                         Ok _ ->
                             Err (CallNonFunction function input)
