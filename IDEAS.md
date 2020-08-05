@@ -2,6 +2,17 @@
 
 This is compilation of ideas on how to make this better. 🎉🎉🎉
 
+Reference:
+
+* [The Glasgow Haskell Compiler](http://aosabook.org/en/ghc.html)
+
+## TO DO
+
+* Type aliases
+* Builtin functions
+* Code generation (start with Python?)
+* Elm parser
+
 ## Serialization
 
 * Make the [`dump`](src/Bitcode.elm) functions to use an actual serialization format
@@ -24,6 +35,9 @@ This is compilation of ideas on how to make this better. 🎉🎉🎉
 * Do lazy evaluation on recursive types
 * Recoginze the `map` pattern and parallelize it
 * Recognize recursve types like `List` or `Tree`, and use a contiguous array of memory to store them (lists should be compiled into a linked list of arrays)
+
+#### Memory allocation
+
 * Use a fast [memory pool](https://en.wikipedia.org/wiki/Memory_pool) for the memory allocator, some ideas
   * [Buddy memory allocation](https://en.wikipedia.org/wiki/Buddy_memory_allocation)
   * [pymalloc](https://www.evanjones.ca/memoryallocator/)
