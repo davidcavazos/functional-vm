@@ -23,40 +23,32 @@ new =
 -- WITH NAME
 
 
-withName : String -> Expression -> Module -> Result Error Module
+withName : String -> Expression -> Module -> Module
 withName name value m =
-    case Dict.get name m.names of
-        Just existing ->
-            Err (NameAlreadyExists name { got = value, existing = existing })
-
-        Nothing ->
-            Ok { m | names = Dict.insert name value m.names }
+    -- Note: this does not check for existing names
+    { m | names = Dict.insert name value m.names }
 
 
 
 -- WITH TYPE
 
 
-withType : ( String, List Type ) -> Dict String ( List ( String, Type ), List Expression ) -> Module -> Result Error Module
+withType : ( String, List Type ) -> Dict String ( List ( String, Type ), List Expression ) -> Module -> Module
 withType ( typeName, typeInputTypes ) constructors m =
+    -- Note: this does not check for existing types
     let
         ctors =
             Dict.map
                 (\_ ( namedTs, _ ) -> List.map Tuple.second namedTs)
                 constructors
     in
-    case Dict.get typeName m.types of
-        Just tdef ->
-            Err (TypeAlreadyExists typeName { got = ( typeInputTypes, ctors ), existing = tdef })
-
-        Nothing ->
-            Dict.foldl
-                (\name inputTypes -> Result.andThen (withTypeConstructor typeName name inputTypes))
-                (Ok { m | types = Dict.insert typeName ( typeInputTypes, ctors ) m.types })
-                constructors
+    Dict.foldl
+        (\name inputTypes -> withTypeConstructor typeName name inputTypes)
+        { m | types = Dict.insert typeName ( typeInputTypes, ctors ) m.types }
+        constructors
 
 
-withTypeConstructor : String -> String -> ( List ( String, Type ), List Expression ) -> Module -> Result Error Module
+withTypeConstructor : String -> String -> ( List ( String, Type ), List Expression ) -> Module -> Module
 withTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
     let
         ctorInputs =

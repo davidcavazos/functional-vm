@@ -136,7 +136,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) Dict.empty
-                        |> Result.andThen (checkP (ConstructorP ( "T", [ Int 1 ] ) "A" []))
+                        |> checkP (ConstructorP ( "T", [ Int 1 ] ) "A" [])
                         |> Expect.equal (Err (TypeInputsMismatch "T" { got = [ IntT ], expected = [] }))
 
             --
@@ -144,7 +144,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) Dict.empty
-                        |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" []))
+                        |> checkP (ConstructorP ( "T", [] ) "A" [])
                         |> Expect.equal (Err (ConstructorNotFound ( "T", [] ) "A"))
 
             --
@@ -152,7 +152,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
-                        |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" []))
+                        |> checkP (ConstructorP ( "T", [] ) "A" [])
                         |> Expect.equal (Ok (ConstructorP ( "T", [] ) "A" []))
 
             --
@@ -160,7 +160,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
-                        |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" [ NumberP 1.1 ]))
+                        |> checkP (ConstructorP ( "T", [] ) "A" [ NumberP 1.1 ])
                         |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ NumberT ], expected = [ IntT ] }))
 
             --
@@ -168,7 +168,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [ IntT ] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
-                        |> Result.andThen (checkP (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ]))
+                        |> checkP (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ])
                         |> Expect.equal (Ok (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ]))
             ]
         ]

@@ -6,6 +6,7 @@ module FVM.Validate exposing
     , typeOfP
     , typecheck
     , typecheckP
+    , validate
     )
 
 import Dict exposing (Dict)
@@ -13,6 +14,66 @@ import FVM exposing (Case(..), Error(..), Expression(..), Module, Pattern(..), T
 import FVM.Module exposing (withName)
 import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
 import Result
+
+
+
+---=== MODULE ===---
+--
+-- VALIDATE MODULE
+
+
+validate : Module -> Result { types : Dict String Error, names : Dict String Error } Module
+validate m =
+    let
+        typeErrors =
+            validateTypes m
+
+        nameErrors =
+            validateNames m
+    in
+    if Dict.isEmpty typeErrors && Dict.isEmpty nameErrors then
+        Ok m
+
+    else
+        Err { types = typeErrors, names = nameErrors }
+
+
+validateTypes : Module -> Dict String Error
+validateTypes m =
+    Dict.map
+        (\_ ( typeInputs, ctors ) ->
+            Result.map2 (\_ _ -> Nothing)
+                (andThenList (\t -> checkT t m) typeInputs)
+                (andThenDict
+                    (\_ inputsT -> andThenList (\t -> checkT t m) inputsT)
+                    ctors
+                )
+        )
+        m.types
+        |> collectErrors
+
+
+validateNames : Module -> Dict String Error
+validateNames m =
+    Dict.map
+        (\_ value -> check value m)
+        m.names
+        |> collectErrors
+
+
+collectErrors : Dict comparable (Result error a) -> Dict comparable error
+collectErrors dict =
+    Dict.toList dict
+        |> List.filterMap
+            (\( k, result ) ->
+                case result of
+                    Ok _ ->
+                        Nothing
+
+                    Err e ->
+                        Just ( k, e )
+            )
+        |> Dict.fromList
 
 
 
@@ -110,21 +171,28 @@ check expression m =
                 (checkT typ m)
 
         Let ( name, value ) output ->
-            Result.andThen
-                (\_ -> Result.andThen (check output) (withName name value m))
-                (check value m)
-                |> Result.map (\_ -> expression)
+            case Dict.get name m.names of
+                Just existing ->
+                    Err (NameAlreadyExists name { got = value, existing = existing })
+
+                Nothing ->
+                    Result.map2 (\_ _ -> expression)
+                        (check value m)
+                        (check output (withName name value m))
 
         Load name ->
             Result.map (\_ -> expression)
                 (getName name m)
 
-        Lambda ( inputName, inputT ) output ->
-            Result.map2 (\_ _ -> expression)
-                (checkT inputT m)
-                (Result.andThen (check output)
-                    (withName inputName (Input inputT) m)
-                )
+        Lambda ( name, inputT ) output ->
+            case Dict.get name m.names of
+                Just existing ->
+                    Err (NameAlreadyExists name { got = Input inputT, existing = existing })
+
+                Nothing ->
+                    Result.map2 (\_ _ -> expression)
+                        (checkT inputT m)
+                        (check output (withName name (Input inputT) m))
 
         Call _ _ ->
             Result.map (\_ -> expression)
@@ -192,7 +260,13 @@ checkCall expression generics m =
             Ok generics
 
 
-checkCase : ( Expression, Type ) -> Type -> Module -> ( Pattern, Expression ) -> Result Error ( List Pattern, List Case ) -> Result Error ( List Pattern, List Case )
+checkCase :
+    ( Expression, Type )
+    -> Type
+    -> Module
+    -> ( Pattern, Expression )
+    -> Result Error ( List Pattern, List Case )
+    -> Result Error ( List Pattern, List Case )
 checkCase ( input, inputT ) outputT m ( pattern, output ) seenAndMissingResult =
     andThen3
         (\( seen, missingCases ) _ mod ->
@@ -349,7 +423,7 @@ typeOf expression m =
                     Ok typ
 
                 Let ( name, value ) output ->
-                    Result.andThen (typeOf output) (withName name value m)
+                    typeOf output (withName name value m)
 
                 Load name ->
                     Result.andThen (\e -> typeOf e m)
@@ -357,9 +431,7 @@ typeOf expression m =
 
                 Lambda ( inputName, inputT ) output ->
                     Result.map (LambdaT inputT)
-                        (Result.andThen (typeOf output)
-                            (withName inputName (Input inputT) m)
-                        )
+                        (typeOf output (withName inputName (Input inputT) m))
 
                 Call function input ->
                     case typeOf function m of
@@ -568,7 +640,7 @@ withPattern pattern m =
                     Ok m
 
                 NameP p name ->
-                    Result.andThen (withName name (Input typ))
+                    Result.map (withName name (Input typ))
                         (withPattern p m)
 
                 TypeP _ ->

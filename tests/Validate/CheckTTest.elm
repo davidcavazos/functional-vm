@@ -45,7 +45,7 @@ suite =
                     \_ ->
                         FVM.Module.new
                             |> withType ( "T", [ IntT ] ) Dict.empty
-                            |> Result.andThen (checkT (NameT "T" [ Number 1.1 ]))
+                            |> checkT (NameT "T" [ Number 1.1 ])
                             |> Expect.equal (Err (TypeInputsMismatch "T" { got = [ NumberT ], expected = [ IntT ] }))
 
                 --
@@ -53,7 +53,7 @@ suite =
                     \_ ->
                         FVM.Module.new
                             |> withType ( "T", [ IntT ] ) Dict.empty
-                            |> Result.andThen (checkT (NameT "T" [ Int 1 ]))
+                            |> checkT (NameT "T" [ Int 1 ])
                             |> Expect.equal (Ok (NameT "T" [ Int 1 ]))
                 ]
 

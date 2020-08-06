@@ -99,7 +99,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [ IntT ] ) (Dict.singleton "A" ( [], [] ))
-                        |> Result.andThen (typeOf (Constructor ( "T", [ Int 1 ] ) "A" []))
+                        |> typeOf (Constructor ( "T", [ Int 1 ] ) "A" [])
                         |> Expect.equal (Ok (NameT "T" [ Int 1 ]))
             ]
 

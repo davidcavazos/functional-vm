@@ -97,7 +97,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) Dict.empty
-                        |> Result.andThen (check (Constructor ( "T", [ Int 1 ] ) "A" []))
+                        |> check (Constructor ( "T", [ Int 1 ] ) "A" [])
                         |> Expect.equal (Err (TypeInputsMismatch "T" { got = [ IntT ], expected = [] }))
 
             --
@@ -105,7 +105,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) Dict.empty
-                        |> Result.andThen (check (Constructor ( "T", [] ) "A" []))
+                        |> check (Constructor ( "T", [] ) "A" [])
                         |> Expect.equal (Err (ConstructorNotFound ( "T", [] ) "A"))
 
             --
@@ -113,7 +113,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
-                        |> Result.andThen (check (Constructor ( "T", [] ) "A" []))
+                        |> check (Constructor ( "T", [] ) "A" [])
                         |> Expect.equal (Ok (Constructor ( "T", [] ) "A" []))
 
             --
@@ -121,7 +121,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
-                        |> Result.andThen (check (Constructor ( "T", [] ) "A" [ Number 1.1 ]))
+                        |> check (Constructor ( "T", [] ) "A" [ Number 1.1 ])
                         |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ NumberT ], expected = [ IntT ] }))
 
             --
@@ -129,7 +129,7 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
-                        |> Result.andThen (check (Constructor ( "T", [] ) "A" [ Int 1 ]))
+                        |> check (Constructor ( "T", [] ) "A" [ Int 1 ])
                         |> Expect.equal (Ok (Constructor ( "T", [] ) "A" [ Int 1 ]))
             ]
 
@@ -473,11 +473,9 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
-                        |> Result.andThen
-                            (check
-                                (CaseOf ( Constructor ( "T", [] ) "A" [], NumberT )
-                                    [ ( ConstructorP ( "T", [] ) "A" [], Number 1.1 ) ]
-                                )
+                        |> check
+                            (CaseOf ( Constructor ( "T", [] ) "A" [], NumberT )
+                                [ ( ConstructorP ( "T", [] ) "A" [], Number 1.1 ) ]
                             )
                         |> Expect.equal (Ok (CaseOf ( Constructor ( "T", [] ) "A" [], NumberT ) [ ( ConstructorP ( "T", [] ) "A" [], Number 1.1 ) ]))
 
@@ -486,11 +484,9 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ), ( "B", ( [ ( "b", IntT ) ], [] ) ) ])
-                        |> Result.andThen
-                            (check
-                                (CaseOf ( Constructor ( "T", [] ) "A" [], IntT )
-                                    [ ( ConstructorP ( "T", [] ) "A" [], Int 1 ) ]
-                                )
+                        |> check
+                            (CaseOf ( Constructor ( "T", [] ) "A" [], IntT )
+                                [ ( ConstructorP ( "T", [] ) "A" [], Int 1 ) ]
                             )
                         |> Expect.equal (Err (CasesMissing ( Constructor ( "T", [] ) "A" [], IntT ) [ ConstructorC ( "T", [] ) "B" [ AnyC IntT ] ]))
 
@@ -499,13 +495,11 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ), ( "B", ( [ ( "b", IntT ) ], [] ) ) ])
-                        |> Result.andThen
-                            (check
-                                (CaseOf ( Constructor ( "T", [] ) "A" [], IntT )
-                                    [ ( ConstructorP ( "T", [] ) "A" [], Int 1 )
-                                    , ( ConstructorP ( "T", [] ) "B" [ IntP 2 ], Int 3 )
-                                    ]
-                                )
+                        |> check
+                            (CaseOf ( Constructor ( "T", [] ) "A" [], IntT )
+                                [ ( ConstructorP ( "T", [] ) "A" [], Int 1 )
+                                , ( ConstructorP ( "T", [] ) "B" [ IntP 2 ], Int 3 )
+                                ]
                             )
                         |> Expect.equal (Err (CasesMissing ( Constructor ( "T", [] ) "A" [], IntT ) [ ConstructorC ( "T", [] ) "B" [ AnyC IntT ] ]))
 
@@ -519,13 +513,11 @@ suite =
                                 , ( "B", ( [ ( "b", IntT ) ], [] ) )
                                 ]
                             )
-                        |> Result.andThen
-                            (check
-                                (CaseOf ( Constructor ( "T", [] ) "A" [], IntT )
-                                    [ ( ConstructorP ( "T", [] ) "A" [], Int 1 )
-                                    , ( ConstructorP ( "T", [] ) "B" [ NameP (AnyP IntT) "x" ], Load "x" )
-                                    ]
-                                )
+                        |> check
+                            (CaseOf ( Constructor ( "T", [] ) "A" [], IntT )
+                                [ ( ConstructorP ( "T", [] ) "A" [], Int 1 )
+                                , ( ConstructorP ( "T", [] ) "B" [ NameP (AnyP IntT) "x" ], Load "x" )
+                                ]
                             )
                         |> Expect.equal (Ok (CaseOf ( Constructor ( "T", [] ) "A" [], IntT ) [ ( ConstructorP ( "T", [] ) "A" [], Int 1 ), ( ConstructorP ( "T", [] ) "B" [ NameP (AnyP IntT) "x" ], Load "x" ) ]))
             ]
