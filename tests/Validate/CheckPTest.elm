@@ -124,7 +124,14 @@ suite =
 
         -- ConstructorP
         , describe "ConstructorP"
-            [ test "type T; (T 1).A -- TypeInputsMismatch -- getTypeDefinition" <|
+            [ test "T.A -- TypeNotFound -- getTypeDefinition" <|
+                \_ ->
+                    FVM.new
+                        |> checkP (ConstructorP ( "T", [ Int 1 ] ) "A" [])
+                        |> Expect.equal (Err (TypeNotFound "T"))
+
+            --
+            , test "type T; (T 1).A -- TypeInputsMismatch -- getTypeDefinition" <|
                 \_ ->
                     FVM.new
                         |> withType ( "T", [] ) Dict.empty
