@@ -111,15 +111,15 @@ suite =
             , test "{a : X} -- TypeNotFound -- checkT on Dict" <|
                 \_ ->
                     FVM.new
-                        |> checkP (RecordP (Dict.fromList [ ( "A", NameT "X" [] ) ]))
+                        |> checkP (RecordP (Dict.singleton "A" (NameT "X" [])))
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "{a : Int} -- ok" <|
                 \_ ->
                     FVM.new
-                        |> checkP (RecordP (Dict.fromList [ ( "a", IntT ) ]))
-                        |> Expect.equal (Ok (RecordP (Dict.fromList [ ( "a", IntT ) ])))
+                        |> checkP (RecordP (Dict.singleton "a" IntT))
+                        |> Expect.equal (Ok (RecordP (Dict.singleton "a" IntT)))
             ]
 
         -- ConstructorP
@@ -143,7 +143,7 @@ suite =
             , test "type T = A; T.A -- ok" <|
                 \_ ->
                     FVM.new
-                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
+                        |> withType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
                         |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" []))
                         |> Expect.equal (Ok (ConstructorP ( "T", [] ) "A" []))
 
@@ -151,7 +151,7 @@ suite =
             , test "type T = A (x : Int); T.A 1.1 -- ConstructorInputsMismatch -- checkP" <|
                 \_ ->
                     FVM.new
-                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
+                        |> withType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
                         |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" [ NumberP 1.1 ]))
                         |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ NumberT ], expected = [ IntT ] }))
 
@@ -159,7 +159,7 @@ suite =
             , test "type T Int = A (x : Int); (T 1).A 2 -- ok" <|
                 \_ ->
                     FVM.new
-                        |> withType ( "T", [ IntT ] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
+                        |> withType ( "T", [ IntT ] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
                         |> Result.andThen (checkP (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ]))
                         |> Expect.equal (Ok (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ]))
             ]
