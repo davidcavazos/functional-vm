@@ -2,8 +2,6 @@ module FVM.Validate exposing
     ( check
     , checkP
     , checkT
-    , expandCase
-    , expandCases
     , typeOf
     , typeOfP
     , typecheck
@@ -230,6 +228,94 @@ isCaseCovered pattern seenPatterns =
         seenPatterns
 
 
+expandCases : Pattern -> List Case -> Module -> Result Error (List Case)
+expandCases pattern cases m =
+    Result.map List.concat
+        (andThenList (\c -> expandCase pattern c m) cases)
+
+
+expandCase : Pattern -> Case -> Module -> Result Error (List Case)
+expandCase pattern case_ m =
+    andThen2
+        (\patternType casePattern ->
+            if patternType == casePattern then
+                case pattern of
+                    AnyP _ ->
+                        Ok []
+
+                    NameP p _ ->
+                        expandCase p case_ m
+
+                    TypeP _ ->
+                        Ok [ case_ ]
+
+                    IntP _ ->
+                        Ok [ case_ ]
+
+                    NumberP _ ->
+                        Ok [ case_ ]
+
+                    TupleP itemsP ->
+                        case case_ of
+                            AnyC (TupleT itemsT) ->
+                                expandCase pattern (TupleC (List.map AnyC itemsT)) m
+
+                            TupleC itemsC ->
+                                Result.map
+                                    (\choices -> List.map TupleC (combinations choices))
+                                    (andThenList (\( p, c ) -> expandCase p c m) (zip2 itemsP itemsC))
+
+                            _ ->
+                                Ok [ case_ ]
+
+                    RecordP _ ->
+                        Ok []
+
+                    ConstructorP (( typeName, typeInputs ) as namedT) name inputsP ->
+                        case case_ of
+                            AnyC _ ->
+                                Result.andThen
+                                    (\ctors ->
+                                        Dict.map
+                                            (\nameC inputsT -> ConstructorC ( typeName, typeInputs ) nameC (List.map AnyC inputsT))
+                                            ctors
+                                            |> Dict.values
+                                            |> (\cases -> expandCases pattern cases m)
+                                    )
+                                    (getTypeDefinition namedT m)
+
+                            ConstructorC namedTC nameC inputsC ->
+                                if namedT == namedTC && name == nameC then
+                                    Result.map
+                                        (\choices -> List.map (ConstructorC namedT nameC) (combinations choices))
+                                        (andThenList (\( p, c ) -> expandCase p c m) (zip2 inputsP inputsC))
+
+                                else
+                                    Ok [ case_ ]
+
+                            _ ->
+                                Ok [ case_ ]
+
+            else
+                Ok [ case_ ]
+        )
+        (typeOfP pattern m)
+        (typeOfP (caseToPattern case_) m)
+
+
+caseToPattern : Case -> Pattern
+caseToPattern case_ =
+    case case_ of
+        AnyC t ->
+            AnyP t
+
+        TupleC itemsC ->
+            TupleP (List.map caseToPattern itemsC)
+
+        ConstructorC namedT name inputsC ->
+            ConstructorP namedT name (List.map caseToPattern inputsC)
+
+
 
 -- TYPE OF EXPRESSION
 
@@ -450,104 +536,6 @@ typecheckP pattern typ m =
         )
         (typeOfP pattern m)
         (checkT typ m)
-
-
-
----=== CASES ===---
---
--- EXPAND CASES
-
-
-expandCases : Pattern -> List Case -> Module -> Result Error (List Case)
-expandCases pattern cases m =
-    Result.map List.concat
-        (andThenList (\c -> expandCase pattern c m) cases)
-
-
-
--- EXPAND CASE
-
-
-expandCase : Pattern -> Case -> Module -> Result Error (List Case)
-expandCase pattern case_ m =
-    andThen2
-        (\patternType casePattern ->
-            if patternType == casePattern then
-                case pattern of
-                    AnyP _ ->
-                        Ok []
-
-                    NameP p _ ->
-                        expandCase p case_ m
-
-                    TypeP _ ->
-                        Ok [ case_ ]
-
-                    IntP _ ->
-                        Ok [ case_ ]
-
-                    NumberP _ ->
-                        Ok [ case_ ]
-
-                    TupleP itemsP ->
-                        case case_ of
-                            AnyC (TupleT itemsT) ->
-                                expandCase pattern (TupleC (List.map AnyC itemsT)) m
-
-                            TupleC itemsC ->
-                                Result.map
-                                    (\choices -> List.map TupleC (combinations choices))
-                                    (andThenList (\( p, c ) -> expandCase p c m) (zip2 itemsP itemsC))
-
-                            _ ->
-                                Ok [ case_ ]
-
-                    RecordP _ ->
-                        Ok []
-
-                    ConstructorP (( typeName, typeInputs ) as namedT) name inputsP ->
-                        case case_ of
-                            AnyC _ ->
-                                Result.andThen
-                                    (\ctors ->
-                                        Dict.map
-                                            (\nameC inputsT -> ConstructorC ( typeName, typeInputs ) nameC (List.map AnyC inputsT))
-                                            ctors
-                                            |> Dict.values
-                                            |> (\cases -> expandCases pattern cases m)
-                                    )
-                                    (getTypeDefinition namedT m)
-
-                            ConstructorC namedTC nameC inputsC ->
-                                if namedT == namedTC && name == nameC then
-                                    Result.map
-                                        (\choices -> List.map (ConstructorC namedT nameC) (combinations choices))
-                                        (andThenList (\( p, c ) -> expandCase p c m) (zip2 inputsP inputsC))
-
-                                else
-                                    Ok [ case_ ]
-
-                            _ ->
-                                Ok [ case_ ]
-
-            else
-                Ok [ case_ ]
-        )
-        (typeOfP pattern m)
-        (typeOfP (caseToPattern case_) m)
-
-
-caseToPattern : Case -> Pattern
-caseToPattern case_ =
-    case case_ of
-        AnyC t ->
-            AnyP t
-
-        TupleC itemsC ->
-            TupleP (List.map caseToPattern itemsC)
-
-        ConstructorC namedT name inputsC ->
-            ConstructorP namedT name (List.map caseToPattern inputsC)
 
 
 

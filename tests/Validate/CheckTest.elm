@@ -417,7 +417,7 @@ suite =
                             )
                         |> Expect.equal (Ok (CaseOf ( Int 1, NumberT ) [ ( IntP 1, Number 1.1 ), ( AnyP IntT, Number 2.2 ) ]))
 
-            -- Tuples
+            -- CaseOf Tuple
             , test "case (1, 2) -> Number of (3, 4) -> 1.1 -- CasesMissing -- on non-record with combinations" <|
                 \_ ->
                     FVM.new
@@ -437,7 +437,7 @@ suite =
                             )
                         |> Expect.equal (Ok (CaseOf ( Tuple [ Int 1, Number 2.2 ], NumberT ) [ ( TupleP [ NameP (AnyP IntT) "x", NameP (AnyP NumberT) "y" ], Load "y" ) ]))
 
-            -- Records
+            -- CaseOf Record
             , test "case {} -> Int of -- MissingCases -- on records" <|
                 \_ ->
                     FVM.new
@@ -484,7 +484,7 @@ suite =
                             )
                         |> Expect.equal (Ok (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), IntT ) [ ( RecordP (Dict.singleton "x" IntT), Int 3 ) ]))
 
-            -- Constructors
+            -- CaseOf Constructor
             , test "type T = A; case T.A -> Number of A -> 1.1 -- ok" <|
                 \_ ->
                     FVM.new

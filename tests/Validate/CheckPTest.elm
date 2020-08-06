@@ -12,7 +12,7 @@ suite =
     describe "checkP"
         -- AnyP
         [ describe "AnyP"
-            [ test "_ : X -- ok -- checkT" <|
+            [ test "_ : X -- TypeNotFound -- checkT" <|
                 \_ ->
                     FVM.new
                         |> checkP (AnyP (NameT "X" []))
@@ -124,14 +124,7 @@ suite =
 
         -- ConstructorP
         , describe "ConstructorP"
-            [ test "X.A -- TypeNotFound -- checkT" <|
-                \_ ->
-                    FVM.new
-                        |> checkP (ConstructorP ( "X", [] ) "A" [])
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "type T; (T 1).A -- TypeInputsMismatch -- getTypeDefinition" <|
+            [ test "type T; (T 1).A -- TypeInputsMismatch -- getTypeDefinition" <|
                 \_ ->
                     FVM.new
                         |> withType ( "T", [] ) Dict.empty
@@ -139,7 +132,7 @@ suite =
                         |> Expect.equal (Err (TypeInputsMismatch "T" { got = [ IntT ], expected = [] }))
 
             --
-            , test "type T; T.A -- ConstructorNotFound" <|
+            , test "type T; T.A -- ConstructorNotFound -- checkP" <|
                 \_ ->
                     FVM.new
                         |> withType ( "T", [] ) Dict.empty
@@ -155,15 +148,7 @@ suite =
                         |> Expect.equal (Ok (ConstructorP ( "T", [] ) "A" []))
 
             --
-            , test "type T Int; (T 1).A -- ConstructorInputsMismatch" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
-                        |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" [ IntP 1 ]))
-                        |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ IntT ], expected = [] }))
-
-            --
-            , test "type T = A (x : Int); T.A 1.1 -- ConstructorInputsMismatch" <|
+            , test "type T = A (x : Int); T.A 1.1 -- ConstructorInputsMismatch -- checkP" <|
                 \_ ->
                     FVM.new
                         |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
