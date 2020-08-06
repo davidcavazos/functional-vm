@@ -2,9 +2,8 @@ module FVM exposing
     ( Case(..)
     , Error(..)
     , Expression(..)
-    , Module
+    , Package
     , Pattern(..)
-    , Program
     , Type(..)
     , TypeDefinition
     )
@@ -16,13 +15,7 @@ import Dict exposing (Dict)
 -- TYPES
 
 
-type alias Program =
-    { modules : Dict String Module
-    , main : Maybe Expression
-    }
-
-
-type alias Module =
+type alias Package =
     { types : Dict String TypeDefinition
     , names : Dict String Expression
     }

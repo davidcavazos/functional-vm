@@ -3,7 +3,7 @@ module Validate.ValidateTest exposing (suite)
 import Dict
 import Expect
 import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..))
-import FVM.Module exposing (withName, withType)
+import FVM.Package exposing (letName, letType)
 import FVM.Validate exposing (validate)
 import Test exposing (Test, describe, test)
 
@@ -15,8 +15,8 @@ suite =
         [ describe "names"
             [ test "x = X -- TypeNotFound -- check value" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withName "x" (Type (NameT "X" []))
+                    FVM.Package.new
+                        |> letName "x" (Type (NameT "X" []))
                         |> validate
                         |> Expect.equal
                             (Err
@@ -30,8 +30,8 @@ suite =
         , describe "types"
             [ test "type T -- ok" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withType ( "T", [] ) Dict.empty
+                    FVM.Package.new
+                        |> letType ( "T", [] ) Dict.empty
                         |> validate
                         |> Expect.equal
                             (Ok
@@ -43,8 +43,8 @@ suite =
             --
             , test "type T X -- TypeNotFound -- checkT type inputs" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withType ( "T", [ NameT "X" [] ] ) Dict.empty
+                    FVM.Package.new
+                        |> letType ( "T", [ NameT "X" [] ] ) Dict.empty
                         |> validate
                         |> Expect.equal
                             (Err
@@ -56,9 +56,9 @@ suite =
             --
             , test "type T X; type X -- ok" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withType ( "T", [ NameT "X" [] ] ) Dict.empty
-                        |> withType ( "X", [] ) Dict.empty
+                    FVM.Package.new
+                        |> letType ( "T", [ NameT "X" [] ] ) Dict.empty
+                        |> letType ( "X", [] ) Dict.empty
                         |> validate
                         |> Expect.equal
                             (Ok
@@ -74,8 +74,8 @@ suite =
             --
             , test "type T Int -- ok" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withType ( "T", [ IntT ] ) Dict.empty
+                    FVM.Package.new
+                        |> letType ( "T", [ IntT ] ) Dict.empty
                         |> validate
                         |> Expect.equal
                             (Ok
@@ -87,8 +87,8 @@ suite =
             --
             , test "type T = A -- ok" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
+                    FVM.Package.new
+                        |> letType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
                         |> validate
                         |> Expect.equal
                             (Ok
@@ -100,8 +100,8 @@ suite =
             --
             , test "type T = A (x : X) -- TypeNotFound -- checkT constructor input" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", NameT "X" [] ) ], [] ))
+                    FVM.Package.new
+                        |> letType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", NameT "X" [] ) ], [] ))
                         |> validate
                         |> Expect.equal
                             (Err
@@ -113,8 +113,8 @@ suite =
             --
             , test "type T = A (x : Int) -- ok" <|
                 \_ ->
-                    FVM.Module.new
-                        |> withType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
+                    FVM.Package.new
+                        |> letType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
                         |> validate
                         |> Expect.equal
                             (Ok

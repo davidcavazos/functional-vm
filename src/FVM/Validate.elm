@@ -10,8 +10,8 @@ module FVM.Validate exposing
     )
 
 import Dict exposing (Dict)
-import FVM exposing (Case(..), Error(..), Expression(..), Module, Pattern(..), Type(..))
-import FVM.Module exposing (withName)
+import FVM exposing (Case(..), Error(..), Expression(..), Package, Pattern(..), Type(..))
+import FVM.Package exposing (letName)
 import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
 import Result
 
@@ -22,7 +22,7 @@ import Result
 -- VALIDATE MODULE
 
 
-validate : Module -> Result { types : Dict String Error, names : Dict String Error } Module
+validate : Package -> Result { types : Dict String Error, names : Dict String Error } Package
 validate m =
     let
         typeErrors =
@@ -38,7 +38,7 @@ validate m =
         Err { types = typeErrors, names = nameErrors }
 
 
-validateTypes : Module -> Dict String Error
+validateTypes : Package -> Dict String Error
 validateTypes m =
     Dict.map
         (\_ ( typeInputs, ctors ) ->
@@ -53,7 +53,7 @@ validateTypes m =
         |> collectErrors
 
 
-validateNames : Module -> Dict String Error
+validateNames : Package -> Dict String Error
 validateNames m =
     Dict.map
         (\_ value -> check value m)
@@ -82,7 +82,7 @@ collectErrors dict =
 -- CHECK TYPE
 
 
-checkT : Type -> Module -> Result Error Type
+checkT : Type -> Package -> Result Error Type
 checkT typ m =
     case typ of
         TypeT ->
@@ -125,7 +125,7 @@ checkT typ m =
 -- CHECK EXPRESSION
 
 
-check : Expression -> Module -> Result Error Expression
+check : Expression -> Package -> Result Error Expression
 check expression m =
     case expression of
         Type typ ->
@@ -178,7 +178,7 @@ check expression m =
                 Nothing ->
                     Result.map2 (\_ _ -> expression)
                         (check value m)
-                        (check output (withName name value m))
+                        (check output (letName name value m))
 
         Load name ->
             Result.map (\_ -> expression)
@@ -192,7 +192,7 @@ check expression m =
                 Nothing ->
                     Result.map2 (\_ _ -> expression)
                         (checkT inputT m)
-                        (check output (withName name (Input inputT) m))
+                        (check output (letName name (Input inputT) m))
 
         Call _ _ ->
             Result.map (\_ -> expression)
@@ -227,7 +227,7 @@ check expression m =
                 (checkT outputT m)
 
 
-checkCall : Expression -> Dict String Type -> Module -> Result Error (Dict String Type)
+checkCall : Expression -> Dict String Type -> Package -> Result Error (Dict String Type)
 checkCall expression generics m =
     case expression of
         Call function input ->
@@ -263,7 +263,7 @@ checkCall expression generics m =
 checkCase :
     ( Expression, Type )
     -> Type
-    -> Module
+    -> Package
     -> ( Pattern, Expression )
     -> Result Error ( List Pattern, List Case )
     -> Result Error ( List Pattern, List Case )
@@ -302,13 +302,13 @@ isCaseCovered pattern seenPatterns =
         seenPatterns
 
 
-expandCases : Pattern -> List Case -> Module -> Result Error (List Case)
+expandCases : Pattern -> List Case -> Package -> Result Error (List Case)
 expandCases pattern cases m =
     Result.map List.concat
         (andThenList (\c -> expandCase pattern c m) cases)
 
 
-expandCase : Pattern -> Case -> Module -> Result Error (List Case)
+expandCase : Pattern -> Case -> Package -> Result Error (List Case)
 expandCase pattern case_ m =
     andThen2
         (\patternType casePattern ->
@@ -394,7 +394,7 @@ caseToPattern case_ =
 -- TYPE OF EXPRESSION
 
 
-typeOf : Expression -> Module -> Result Error Type
+typeOf : Expression -> Package -> Result Error Type
 typeOf expression m =
     Result.andThen
         (\_ ->
@@ -423,7 +423,7 @@ typeOf expression m =
                     Ok typ
 
                 Let ( name, value ) output ->
-                    typeOf output (withName name value m)
+                    typeOf output (letName name value m)
 
                 Load name ->
                     Result.andThen (\e -> typeOf e m)
@@ -431,7 +431,7 @@ typeOf expression m =
 
                 Lambda ( inputName, inputT ) output ->
                     Result.map (LambdaT inputT)
-                        (typeOf output (withName inputName (Input inputT) m))
+                        (typeOf output (letName inputName (Input inputT) m))
 
                 Call function input ->
                     case typeOf function m of
@@ -454,7 +454,7 @@ typeOf expression m =
 -- TYPECHECK EXPRESSION
 
 
-typecheck : Expression -> Type -> Module -> Result Error Expression
+typecheck : Expression -> Type -> Package -> Result Error Expression
 typecheck expression typ m =
     andThen2
         (\exprType _ ->
@@ -474,7 +474,7 @@ typecheck expression typ m =
 -- CHECK PATTERN
 
 
-checkP : Pattern -> Module -> Result Error Pattern
+checkP : Pattern -> Package -> Result Error Pattern
 checkP pattern m =
     case pattern of
         AnyP t ->
@@ -525,7 +525,7 @@ checkP pattern m =
 -- TYPE OF PATTERN
 
 
-typeOfP : Pattern -> Module -> Result Error Type
+typeOfP : Pattern -> Package -> Result Error Type
 typeOfP pattern m =
     Result.andThen
         (\_ ->
@@ -561,7 +561,7 @@ typeOfP pattern m =
 -- TYPECHECK PATTERN
 
 
-typecheckP : Pattern -> Type -> Module -> Result Error Pattern
+typecheckP : Pattern -> Type -> Package -> Result Error Pattern
 typecheckP pattern typ m =
     andThen2
         (\patternType _ ->
@@ -603,7 +603,7 @@ typecheckP pattern typ m =
 -- GET TYPE DEFINITION
 
 
-getTypeDefinition : ( String, List Expression ) -> Module -> Result Error (Dict String (List Type))
+getTypeDefinition : ( String, List Expression ) -> Package -> Result Error (Dict String (List Type))
 getTypeDefinition ( typeName, typeInputs ) m =
     case Dict.get typeName m.types of
         Just ( typeInputsT, ctors ) ->
@@ -621,7 +621,7 @@ getTypeDefinition ( typeName, typeInputs ) m =
             Err (TypeNotFound typeName)
 
 
-getName : String -> Module -> Result Error Expression
+getName : String -> Package -> Result Error Expression
 getName name m =
     case Dict.get name m.names of
         Just value ->
@@ -631,7 +631,7 @@ getName name m =
             Err (NameNotFound name)
 
 
-withPattern : Pattern -> Module -> Result Error Module
+withPattern : Pattern -> Package -> Result Error Package
 withPattern pattern m =
     Result.andThen
         (\typ ->
@@ -640,7 +640,7 @@ withPattern pattern m =
                     Ok m
 
                 NameP p name ->
-                    Result.map (withName name (Input typ))
+                    Result.map (letName name (Input typ))
                         (withPattern p m)
 
                 TypeP _ ->

@@ -1,18 +1,18 @@
-module FVM.Module exposing
-    ( new
-    , withName
-    , withType
+module FVM.Package exposing
+    ( letName
+    , letType
+    , new
     )
 
 import Dict exposing (Dict)
-import FVM exposing (Error(..), Expression(..), Module, Type)
+import FVM exposing (Error(..), Expression(..), Package, Type)
 
 
 
 -- NEW
 
 
-new : Module
+new : Package
 new =
     { types = Dict.empty
     , names = Dict.empty
@@ -23,8 +23,8 @@ new =
 -- WITH NAME
 
 
-withName : String -> Expression -> Module -> Module
-withName name value m =
+letName : String -> Expression -> Package -> Package
+letName name value m =
     -- Note: this does not check for existing names
     { m | names = Dict.insert name value m.names }
 
@@ -33,8 +33,8 @@ withName name value m =
 -- WITH TYPE
 
 
-withType : ( String, List Type ) -> Dict String ( List ( String, Type ), List Expression ) -> Module -> Module
-withType ( typeName, typeInputTypes ) constructors m =
+letType : ( String, List Type ) -> Dict String ( List ( String, Type ), List Expression ) -> Package -> Package
+letType ( typeName, typeInputTypes ) constructors m =
     -- Note: this does not check for existing types
     let
         ctors =
@@ -43,13 +43,13 @@ withType ( typeName, typeInputTypes ) constructors m =
                 constructors
     in
     Dict.foldl
-        (\name inputTypes -> withTypeConstructor typeName name inputTypes)
+        (\name inputTypes -> letTypeConstructor typeName name inputTypes)
         { m | types = Dict.insert typeName ( typeInputTypes, ctors ) m.types }
         constructors
 
 
-withTypeConstructor : String -> String -> ( List ( String, Type ), List Expression ) -> Module -> Module
-withTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
+letTypeConstructor : String -> String -> ( List ( String, Type ), List Expression ) -> Package -> Package
+letTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
     let
         ctorInputs =
             List.map (\( n, _ ) -> Load n) namedInputTypes
@@ -59,4 +59,4 @@ withTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
                 (Constructor ( typeName, typeInputs ) name ctorInputs)
                 namedInputTypes
     in
-    withName name ctor m
+    letName name ctor m
