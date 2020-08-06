@@ -25,7 +25,6 @@ type alias Program =
 
 type alias Module =
     { types : Dict String TypeDefinition
-    , generics : Dict String Type
     , names : Dict String Expression
     }
 
@@ -106,6 +105,5 @@ type Error
 new : Module
 new =
     { types = Dict.empty
-    , generics = Dict.empty
     , names = Dict.empty
     }
