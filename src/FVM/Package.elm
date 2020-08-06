@@ -24,9 +24,9 @@ new =
 
 
 letName : String -> Expression -> Package -> Package
-letName name value m =
+letName name value pkg =
     -- Note: this does not check for existing names
-    { m | names = Dict.insert name value m.names }
+    { pkg | names = Dict.insert name value pkg.names }
 
 
 
@@ -34,7 +34,7 @@ letName name value m =
 
 
 letType : ( String, List Type ) -> Dict String ( List ( String, Type ), List Expression ) -> Package -> Package
-letType ( typeName, typeInputTypes ) constructors m =
+letType ( typeName, typeInputTypes ) constructors pkg =
     -- Note: this does not check for existing types
     let
         ctors =
@@ -44,12 +44,12 @@ letType ( typeName, typeInputTypes ) constructors m =
     in
     Dict.foldl
         (\name inputTypes -> letTypeConstructor typeName name inputTypes)
-        { m | types = Dict.insert typeName ( typeInputTypes, ctors ) m.types }
+        { pkg | types = Dict.insert typeName ( typeInputTypes, ctors ) pkg.types }
         constructors
 
 
 letTypeConstructor : String -> String -> ( List ( String, Type ), List Expression ) -> Package -> Package
-letTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
+letTypeConstructor typeName name ( namedInputTypes, typeInputs ) pkg =
     let
         ctorInputs =
             List.map (\( n, _ ) -> Load n) namedInputTypes
@@ -59,4 +59,4 @@ letTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
                 (Constructor ( typeName, typeInputs ) name ctorInputs)
                 namedInputTypes
     in
-    letName name ctor m
+    letName name ctor pkg

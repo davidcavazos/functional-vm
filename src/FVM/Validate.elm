@@ -23,41 +23,41 @@ import Result
 
 
 validate : Package -> Result PackageErrors Package
-validate m =
+validate pkg =
     let
         typeErrors =
-            validateTypes m
+            validateTypes pkg
 
         nameErrors =
-            validateNames m
+            validateNames pkg
     in
     if Dict.isEmpty typeErrors && Dict.isEmpty nameErrors then
-        Ok m
+        Ok pkg
 
     else
         Err { types = typeErrors, names = nameErrors }
 
 
 validateTypes : Package -> Dict String Error
-validateTypes m =
+validateTypes pkg =
     Dict.map
         (\_ ( typeInputs, ctors ) ->
             Result.map2 (\_ _ -> Nothing)
-                (andThenList (\t -> checkT t m) typeInputs)
+                (andThenList (\t -> checkT t pkg) typeInputs)
                 (andThenDict
-                    (\_ inputsT -> andThenList (\t -> checkT t m) inputsT)
+                    (\_ inputsT -> andThenList (\t -> checkT t pkg) inputsT)
                     ctors
                 )
         )
-        m.types
+        pkg.types
         |> collectErrors
 
 
 validateNames : Package -> Dict String Error
-validateNames m =
+validateNames pkg =
     Dict.map
-        (\_ value -> check value m)
-        m.names
+        (\_ value -> check value pkg)
+        pkg.names
         |> collectErrors
 
 
@@ -83,7 +83,7 @@ collectErrors dict =
 
 
 checkT : Type -> Package -> Result Error Type
-checkT typ m =
+checkT typ pkg =
     case typ of
         TypeT ->
             Ok typ
@@ -96,27 +96,27 @@ checkT typ m =
 
         NameT typeName typeInputs ->
             Result.map (\_ -> typ)
-                (getTypeDefinition ( typeName, typeInputs ) m)
+                (getTypeDefinition ( typeName, typeInputs ) pkg)
 
         TupleT itemsT ->
             Result.map (\_ -> typ)
-                (andThenList (\t -> checkT t m) itemsT)
+                (andThenList (\t -> checkT t pkg) itemsT)
 
         RecordT itemsT ->
             Result.map (\_ -> typ)
-                (andThenDict (\_ t -> checkT t m) itemsT)
+                (andThenDict (\_ t -> checkT t pkg) itemsT)
 
         LambdaT inputT outputT ->
             Result.map2 (\_ _ -> typ)
-                (checkT inputT m)
-                (checkT outputT m)
+                (checkT inputT pkg)
+                (checkT outputT pkg)
 
         GenericT _ ->
             Ok typ
 
         UnionT types ->
             Result.map (\_ -> typ)
-                (andThenList (\t -> checkT t m) types)
+                (andThenList (\t -> checkT t pkg) types)
 
 
 
@@ -126,11 +126,11 @@ checkT typ m =
 
 
 check : Expression -> Package -> Result Error Expression
-check expression m =
+check expression pkg =
     case expression of
         Type typ ->
             Result.map (\_ -> expression)
-                (checkT typ m)
+                (checkT typ pkg)
 
         Int _ ->
             Ok expression
@@ -140,11 +140,11 @@ check expression m =
 
         Tuple items ->
             Result.map (\_ -> expression)
-                (andThenList (\x -> check x m) items)
+                (andThenList (\x -> check x pkg) items)
 
         Record items ->
             Result.map (\_ -> expression)
-                (andThenDict (\_ x -> check x m) items)
+                (andThenDict (\_ x -> check x pkg) items)
 
         Constructor namedT name inputs ->
             Result.andThen
@@ -159,50 +159,50 @@ check expression m =
                                     else
                                         Err (ConstructorInputsMismatch namedT name { got = gotT, expected = inputsT })
                                 )
-                                (andThenList (\x -> typeOf x m) inputs)
+                                (andThenList (\x -> typeOf x pkg) inputs)
 
                         Nothing ->
                             Err (ConstructorNotFound namedT name)
                 )
-                (getTypeDefinition namedT m)
+                (getTypeDefinition namedT pkg)
 
         Input typ ->
             Result.map (\_ -> expression)
-                (checkT typ m)
+                (checkT typ pkg)
 
         Let ( name, value ) output ->
-            case Dict.get name m.names of
+            case Dict.get name pkg.names of
                 Just existing ->
                     Err (NameAlreadyExists name { got = value, existing = existing })
 
                 Nothing ->
                     Result.map2 (\_ _ -> expression)
-                        (check value m)
-                        (check output (letName name value m))
+                        (check value pkg)
+                        (check output (letName name value pkg))
 
         Load name ->
             Result.map (\_ -> expression)
-                (getName name m)
+                (getName name pkg)
 
         Lambda ( name, inputT ) output ->
-            case Dict.get name m.names of
+            case Dict.get name pkg.names of
                 Just existing ->
                     Err (NameAlreadyExists name { got = Input inputT, existing = existing })
 
                 Nothing ->
                     Result.map2 (\_ _ -> expression)
-                        (checkT inputT m)
-                        (check output (letName name (Input inputT) m))
+                        (checkT inputT pkg)
+                        (check output (letName name (Input inputT) pkg))
 
         Call _ _ ->
             Result.map (\_ -> expression)
-                (checkCall expression Dict.empty m)
+                (checkCall expression Dict.empty pkg)
 
         CaseOf ( input, outputT ) cases ->
             andThen2
                 (\inputT _ ->
                     List.foldl
-                        (checkCase ( input, inputT ) outputT m)
+                        (checkCase ( input, inputT ) outputT pkg)
                         (Ok ( [], [ AnyC inputT ] ))
                         cases
                         |> Result.andThen
@@ -223,30 +223,30 @@ check expression m =
                                             Err (CasesMissing ( input, outputT ) missing)
                             )
                 )
-                (typeOf input m)
-                (checkT outputT m)
+                (typeOf input pkg)
+                (checkT outputT pkg)
 
 
 checkCall : Expression -> Dict String Type -> Package -> Result Error (Dict String Type)
-checkCall expression generics m =
+checkCall expression generics pkg =
     case expression of
         Call function input ->
             Result.andThen
                 (\gs ->
-                    case typeOf function m of
+                    case typeOf function pkg of
                         Ok (LambdaT (GenericT name) _) ->
                             case Dict.get name gs of
                                 Just t ->
                                     Result.map (\_ -> gs)
-                                        (typecheck input t m)
+                                        (typecheck input t pkg)
 
                                 Nothing ->
                                     Result.map (\t -> Dict.insert name t gs)
-                                        (typeOf input m)
+                                        (typeOf input pkg)
 
                         Ok (LambdaT inputT _) ->
                             Result.map (\_ -> gs)
-                                (typecheck input inputT m)
+                                (typecheck input inputT pkg)
 
                         Ok _ ->
                             Err (CallNonFunction function input)
@@ -254,7 +254,7 @@ checkCall expression generics m =
                         Err e ->
                             Err e
                 )
-                (checkCall function generics m)
+                (checkCall function generics pkg)
 
         _ ->
             Ok generics
@@ -267,9 +267,9 @@ checkCase :
     -> ( Pattern, Expression )
     -> Result Error ( List Pattern, List Case )
     -> Result Error ( List Pattern, List Case )
-checkCase ( input, inputT ) outputT m ( pattern, output ) seenAndMissingResult =
+checkCase ( input, inputT ) outputT pkg ( pattern, output ) seenAndMissingResult =
     andThen3
-        (\( seen, missingCases ) _ mod ->
+        (\( seen, missingCases ) _ prevPkg ->
             Result.andThen
                 (\_ ->
                     if isCaseCovered pattern seen then
@@ -278,13 +278,13 @@ checkCase ( input, inputT ) outputT m ( pattern, output ) seenAndMissingResult =
                     else
                         Result.map
                             (\cases -> ( pattern :: seen, cases ))
-                            (expandCases pattern missingCases m)
+                            (expandCases pattern missingCases pkg)
                 )
-                (typecheck output outputT mod)
+                (typecheck output outputT prevPkg)
         )
         seenAndMissingResult
-        (typecheckP pattern inputT m)
-        (withPattern pattern m)
+        (typecheckP pattern inputT pkg)
+        (withPattern pattern pkg)
 
 
 isCaseCovered : Pattern -> List Pattern -> Bool
@@ -303,13 +303,13 @@ isCaseCovered pattern seenPatterns =
 
 
 expandCases : Pattern -> List Case -> Package -> Result Error (List Case)
-expandCases pattern cases m =
+expandCases pattern cases pkg =
     Result.map List.concat
-        (andThenList (\c -> expandCase pattern c m) cases)
+        (andThenList (\c -> expandCase pattern c pkg) cases)
 
 
 expandCase : Pattern -> Case -> Package -> Result Error (List Case)
-expandCase pattern case_ m =
+expandCase pattern case_ pkg =
     andThen2
         (\patternType casePattern ->
             if patternType == casePattern then
@@ -318,7 +318,7 @@ expandCase pattern case_ m =
                         Ok []
 
                     NameP p _ ->
-                        expandCase p case_ m
+                        expandCase p case_ pkg
 
                     TypeP _ ->
                         Ok [ case_ ]
@@ -332,12 +332,12 @@ expandCase pattern case_ m =
                     TupleP itemsP ->
                         case case_ of
                             AnyC (TupleT itemsT) ->
-                                expandCase pattern (TupleC (List.map AnyC itemsT)) m
+                                expandCase pattern (TupleC (List.map AnyC itemsT)) pkg
 
                             TupleC itemsC ->
                                 Result.map
                                     (\choices -> List.map TupleC (combinations choices))
-                                    (andThenList (\( p, c ) -> expandCase p c m) (zip2 itemsP itemsC))
+                                    (andThenList (\( p, c ) -> expandCase p c pkg) (zip2 itemsP itemsC))
 
                             _ ->
                                 Ok [ case_ ]
@@ -354,15 +354,15 @@ expandCase pattern case_ m =
                                             (\nameC inputsT -> ConstructorC ( typeName, typeInputs ) nameC (List.map AnyC inputsT))
                                             ctors
                                             |> Dict.values
-                                            |> (\cases -> expandCases pattern cases m)
+                                            |> (\cases -> expandCases pattern cases pkg)
                                     )
-                                    (getTypeDefinition namedT m)
+                                    (getTypeDefinition namedT pkg)
 
                             ConstructorC namedTC nameC inputsC ->
                                 if namedT == namedTC && name == nameC then
                                     Result.map
                                         (\choices -> List.map (ConstructorC namedT nameC) (combinations choices))
-                                        (andThenList (\( p, c ) -> expandCase p c m) (zip2 inputsP inputsC))
+                                        (andThenList (\( p, c ) -> expandCase p c pkg) (zip2 inputsP inputsC))
 
                                 else
                                     Ok [ case_ ]
@@ -373,8 +373,8 @@ expandCase pattern case_ m =
             else
                 Ok [ case_ ]
         )
-        (typeOfP pattern m)
-        (typeOfP (caseToPattern case_) m)
+        (typeOfP pattern pkg)
+        (typeOfP (caseToPattern case_) pkg)
 
 
 caseToPattern : Case -> Pattern
@@ -395,7 +395,7 @@ caseToPattern case_ =
 
 
 typeOf : Expression -> Package -> Result Error Type
-typeOf expression m =
+typeOf expression pkg =
     Result.andThen
         (\_ ->
             case expression of
@@ -410,11 +410,11 @@ typeOf expression m =
 
                 Tuple items ->
                     Result.map TupleT
-                        (andThenList (\x -> typeOf x m) items)
+                        (andThenList (\x -> typeOf x pkg) items)
 
                 Record items ->
                     Result.map RecordT
-                        (andThenDict (\_ x -> typeOf x m) items)
+                        (andThenDict (\_ x -> typeOf x pkg) items)
 
                 Constructor ( typeName, typeInputs ) _ _ ->
                     Ok (NameT typeName typeInputs)
@@ -423,18 +423,18 @@ typeOf expression m =
                     Ok typ
 
                 Let ( name, value ) output ->
-                    typeOf output (letName name value m)
+                    typeOf output (letName name value pkg)
 
                 Load name ->
-                    Result.andThen (\e -> typeOf e m)
-                        (getName name m)
+                    Result.andThen (\e -> typeOf e pkg)
+                        (getName name pkg)
 
                 Lambda ( inputName, inputT ) output ->
                     Result.map (LambdaT inputT)
-                        (typeOf output (letName inputName (Input inputT) m))
+                        (typeOf output (letName inputName (Input inputT) pkg))
 
                 Call function input ->
-                    case typeOf function m of
+                    case typeOf function pkg of
                         Ok (LambdaT _ outputT) ->
                             Ok outputT
 
@@ -447,7 +447,7 @@ typeOf expression m =
                 CaseOf ( _, outputT ) _ ->
                     Ok outputT
         )
-        (check expression m)
+        (check expression pkg)
 
 
 
@@ -455,7 +455,7 @@ typeOf expression m =
 
 
 typecheck : Expression -> Type -> Package -> Result Error Expression
-typecheck expression typ m =
+typecheck expression typ pkg =
     andThen2
         (\exprType _ ->
             if exprType == typ then
@@ -464,8 +464,8 @@ typecheck expression typ m =
             else
                 Err (TypeMismatch expression typ)
         )
-        (typeOf expression m)
-        (checkT typ m)
+        (typeOf expression pkg)
+        (checkT typ pkg)
 
 
 
@@ -475,16 +475,16 @@ typecheck expression typ m =
 
 
 checkP : Pattern -> Package -> Result Error Pattern
-checkP pattern m =
+checkP pattern pkg =
     case pattern of
         AnyP t ->
-            Result.map (\_ -> pattern) (checkT t m)
+            Result.map (\_ -> pattern) (checkT t pkg)
 
         NameP p _ ->
-            Result.map (\_ -> pattern) (checkP p m)
+            Result.map (\_ -> pattern) (checkP p pkg)
 
         TypeP t ->
-            Result.map (\_ -> pattern) (checkT t m)
+            Result.map (\_ -> pattern) (checkT t pkg)
 
         IntP _ ->
             Ok pattern
@@ -494,11 +494,11 @@ checkP pattern m =
 
         TupleP itemsP ->
             Result.map (\_ -> pattern)
-                (andThenList (\p -> checkP p m) itemsP)
+                (andThenList (\p -> checkP p pkg) itemsP)
 
         RecordP itemsT ->
             Result.map (\_ -> pattern)
-                (checkT (RecordT itemsT) m)
+                (checkT (RecordT itemsT) pkg)
 
         ConstructorP namedT name inputsP ->
             Result.andThen
@@ -513,12 +513,12 @@ checkP pattern m =
                                     else
                                         Err (ConstructorInputsMismatch namedT name { got = gotT, expected = inputsT })
                                 )
-                                (andThenList (\p -> typeOfP p m) inputsP)
+                                (andThenList (\p -> typeOfP p pkg) inputsP)
 
                         Nothing ->
                             Err (ConstructorNotFound namedT name)
                 )
-                (getTypeDefinition namedT m)
+                (getTypeDefinition namedT pkg)
 
 
 
@@ -526,7 +526,7 @@ checkP pattern m =
 
 
 typeOfP : Pattern -> Package -> Result Error Type
-typeOfP pattern m =
+typeOfP pattern pkg =
     Result.andThen
         (\_ ->
             case pattern of
@@ -534,7 +534,7 @@ typeOfP pattern m =
                     Ok t
 
                 NameP p _ ->
-                    typeOfP p m
+                    typeOfP p pkg
 
                 TypeP _ ->
                     Ok TypeT
@@ -546,7 +546,7 @@ typeOfP pattern m =
                     Ok NumberT
 
                 TupleP itemsP ->
-                    Result.map TupleT (andThenList (\p -> typeOfP p m) itemsP)
+                    Result.map TupleT (andThenList (\p -> typeOfP p pkg) itemsP)
 
                 RecordP itemsT ->
                     Ok (RecordT itemsT)
@@ -554,7 +554,7 @@ typeOfP pattern m =
                 ConstructorP ( typeName, typeInputs ) _ _ ->
                     Ok (NameT typeName typeInputs)
         )
-        (checkP pattern m)
+        (checkP pattern pkg)
 
 
 
@@ -562,7 +562,7 @@ typeOfP pattern m =
 
 
 typecheckP : Pattern -> Type -> Package -> Result Error Pattern
-typecheckP pattern typ m =
+typecheckP pattern typ pkg =
     andThen2
         (\patternType _ ->
             if patternType == typ then
@@ -593,8 +593,8 @@ typecheckP pattern typ m =
                     _ ->
                         Err (PatternMismatch pattern typ)
         )
-        (typeOfP pattern m)
-        (checkT typ m)
+        (typeOfP pattern pkg)
+        (checkT typ pkg)
 
 
 
@@ -604,8 +604,8 @@ typecheckP pattern typ m =
 
 
 getTypeDefinition : ( String, List Expression ) -> Package -> Result Error (Dict String (List Type))
-getTypeDefinition ( typeName, typeInputs ) m =
-    case Dict.get typeName m.types of
+getTypeDefinition ( typeName, typeInputs ) pkg =
+    case Dict.get typeName pkg.types of
         Just ( typeInputsT, ctors ) ->
             Result.andThen
                 (\gotT ->
@@ -615,15 +615,15 @@ getTypeDefinition ( typeName, typeInputs ) m =
                     else
                         Err (TypeInputsMismatch typeName { got = gotT, expected = typeInputsT })
                 )
-                (andThenList (\x -> typeOf x m) typeInputs)
+                (andThenList (\x -> typeOf x pkg) typeInputs)
 
         Nothing ->
             Err (TypeNotFound typeName)
 
 
 getName : String -> Package -> Result Error Expression
-getName name m =
-    case Dict.get name m.names of
+getName name pkg =
+    case Dict.get name pkg.names of
         Just value ->
             Ok value
 
@@ -632,37 +632,37 @@ getName name m =
 
 
 withPattern : Pattern -> Package -> Result Error Package
-withPattern pattern m =
+withPattern pattern pkg =
     Result.andThen
         (\typ ->
             case pattern of
                 AnyP _ ->
-                    Ok m
+                    Ok pkg
 
                 NameP p name ->
                     Result.map (letName name (Input typ))
-                        (withPattern p m)
+                        (withPattern p pkg)
 
                 TypeP _ ->
-                    Ok m
+                    Ok pkg
 
                 IntP _ ->
-                    Ok m
+                    Ok pkg
 
                 NumberP _ ->
-                    Ok m
+                    Ok pkg
 
                 TupleP itemsP ->
                     List.foldl (\p -> Result.andThen (withPattern p))
-                        (Ok m)
+                        (Ok pkg)
                         itemsP
 
                 RecordP _ ->
-                    Ok m
+                    Ok pkg
 
                 ConstructorP _ _ inputsP ->
                     List.foldl (\p -> Result.andThen (withPattern p))
-                        (Ok m)
+                        (Ok pkg)
                         inputsP
         )
-        (typeOfP pattern m)
+        (typeOfP pattern pkg)
