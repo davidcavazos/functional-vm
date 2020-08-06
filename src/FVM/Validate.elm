@@ -88,9 +88,9 @@ check expression m =
             Result.map (\_ -> expression)
                 (andThenDict (\_ x -> check x m) items)
 
-        Constructor (( typeName, typeInputs ) as namedT) name inputs ->
-            andThen2
-                (\_ ctors ->
+        Constructor namedT name inputs ->
+            Result.andThen
+                (\ctors ->
                     case Dict.get name ctors of
                         Just inputsT ->
                             Result.andThen
@@ -106,7 +106,6 @@ check expression m =
                         Nothing ->
                             Err (ConstructorNotFound namedT name)
                 )
-                (checkT (NameT typeName typeInputs) m)
                 (getTypeDefinition namedT m)
 
         Input typ ->
@@ -137,7 +136,7 @@ check expression m =
             andThen2
                 (\inputT _ ->
                     List.foldl
-                        (checkCase input inputT outputT m)
+                        (checkCase ( input, inputT ) outputT m)
                         (Ok ( [], [ AnyC inputT ] ))
                         cases
                         |> Result.andThen
@@ -195,10 +194,10 @@ checkCall expression generics m =
             Ok generics
 
 
-checkCase : Expression -> Type -> Type -> Module -> ( Pattern, Expression ) -> Result Error ( List Pattern, List Case ) -> Result Error ( List Pattern, List Case )
-checkCase input inputT outputT m ( pattern, output ) seenAndMissingResult =
+checkCase : ( Expression, Type ) -> Type -> Module -> ( Pattern, Expression ) -> Result Error ( List Pattern, List Case ) -> Result Error ( List Pattern, List Case )
+checkCase ( input, inputT ) outputT m ( pattern, output ) seenAndMissingResult =
     andThen3
-        (\( seen, missingCases ) _ moduleWithPattern ->
+        (\( seen, missingCases ) _ mod ->
             Result.andThen
                 (\_ ->
                     if isCaseCovered pattern seen then
@@ -209,7 +208,7 @@ checkCase input inputT outputT m ( pattern, output ) seenAndMissingResult =
                             (\cases -> ( pattern :: seen, cases ))
                             (expandCases pattern missingCases m)
                 )
-                (typecheck output outputT moduleWithPattern)
+                (typecheck output outputT mod)
         )
         seenAndMissingResult
         (typecheckP pattern inputT m)

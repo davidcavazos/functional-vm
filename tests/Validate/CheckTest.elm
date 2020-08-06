@@ -12,7 +12,7 @@ suite =
     describe "check"
         -- Type
         [ describe "Type"
-            [ test "X -- TypeNotFound" <|
+            [ test "X -- TypeNotFound -- checkT" <|
                 \_ ->
                     FVM.new
                         |> check (Type (NameT "X" []))
@@ -53,7 +53,7 @@ suite =
                         |> Expect.equal (Ok (Tuple []))
 
             --
-            , test "(X) -- TypeNotFound" <|
+            , test "(X) -- TypeNotFound -- check on List" <|
                 \_ ->
                     FVM.new
                         |> check (Tuple [ Type (NameT "X" []) ])
@@ -76,7 +76,7 @@ suite =
                         |> Expect.equal (Ok (Record Dict.empty))
 
             --
-            , test "{a = X} -- TypeNotFound" <|
+            , test "{a = X} -- TypeNotFound -- check on Dict" <|
                 \_ ->
                     FVM.new
                         |> check (Record (Dict.singleton "a" (Type (NameT "X" []))))
@@ -92,14 +92,7 @@ suite =
 
         -- Constructor
         , describe "Constructor"
-            [ test "X.A -- TypeNotFound" <|
-                \_ ->
-                    FVM.new
-                        |> check (Constructor ( "X", [] ) "A" [])
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "type T; (T 1).A -- TypeInputsMismatch" <|
+            [ test "type T; (T 1).A -- TypeInputsMismatch -- getTypeDefinition" <|
                 \_ ->
                     FVM.new
                         |> withType ( "T", [] ) Dict.empty
@@ -123,14 +116,6 @@ suite =
                         |> Expect.equal (Ok (Constructor ( "T", [] ) "A" []))
 
             --
-            , test "type T = A; T.A 1 -- ConstructorInputsMismatch" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
-                        |> Result.andThen (check (Constructor ( "T", [] ) "A" [ Int 1 ]))
-                        |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ IntT ], expected = [] }))
-
-            --
             , test "type T = A (x : Int); T.A 1.1 -- ConstructorInputsMismatch" <|
                 \_ ->
                     FVM.new
@@ -149,7 +134,7 @@ suite =
 
         -- Input
         , describe "Input"
-            [ test "input X -- TypeNotFound" <|
+            [ test "input X -- TypeNotFound -- checkT" <|
                 \_ ->
                     FVM.new
                         |> check (Input (NameT "X" []))
@@ -165,7 +150,7 @@ suite =
 
         -- Load
         , describe "Load"
-            [ test "x -- NameNotFound" <|
+            [ test "x -- NameNotFound -- getName" <|
                 \_ ->
                     FVM.new
                         |> check (Load "x")
@@ -180,7 +165,7 @@ suite =
                         |> Expect.equal (Ok (Load "x"))
 
             --
-            , test "input x : Int; x -- ok" <|
+            , test "let x : Int; x -- ok" <|
                 \_ ->
                     FVM.new
                         |> withName "x" (Input IntT)
@@ -190,14 +175,14 @@ suite =
 
         -- Lambda
         , describe "Lambda"
-            [ test "(x : X) -> 1 -- TypeNotFound on input type" <|
+            [ test "(x : X) -> 1 -- TypeNotFound -- checkT on input type" <|
                 \_ ->
                     FVM.new
                         |> check (Lambda ( "x", NameT "X" [] ) (Int 1))
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
-            , test "(x : Int) -> y -- NameNotFound on output" <|
+            , test "(x : Int) -> y -- NameNotFound -- check on output" <|
                 \_ ->
                     FVM.new
                         |> check (Lambda ( "x", IntT ) (Load "y"))
@@ -213,14 +198,14 @@ suite =
 
         -- Let
         , describe "Let"
-            [ test "let x = X; 1 -- TypeNotFound on definition" <|
+            [ test "let x = X; 1 -- TypeNotFound -- withVariables on definition" <|
                 \_ ->
                     FVM.new
                         |> check (Let (Dict.singleton "x" (Type (NameT "X" []))) (Int 1))
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
-            , test "let x = 1; y -- NameNotFound on output" <|
+            , test "let x = 1; y -- NameNotFound -- check on output" <|
                 \_ ->
                     FVM.new
                         |> check (Let (Dict.singleton "x" (Int 1)) (Load "y"))
@@ -234,7 +219,7 @@ suite =
                         |> Expect.equal (Ok (Let (Dict.singleton "x" (Int 1)) (Load "x")))
 
             --
-            , test "let x = 1; y = x; y -- ok" <|
+            , test "let x = 1; y = x; y -- ok -- multiple dependent variables" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -251,56 +236,21 @@ suite =
 
         -- Call
         , describe "Call"
-            [ test "x 1 -- NameNotFound on function" <|
+            [ test "x 1 -- NameNotFound -- typeOf function" <|
                 \_ ->
                     FVM.new
                         |> check (Call (Load "x") (Int 1))
                         |> Expect.equal (Err (NameNotFound "x"))
 
             --
-            , test "1 2 -- CallNonFunction" <|
+            , test "1 2 -- CallNonFunction -- typeOf function" <|
                 \_ ->
                     FVM.new
                         |> check (Call (Int 1) (Int 2))
                         |> Expect.equal (Err (CallNonFunction (Int 1) (Int 2)))
 
-            -- Call Lambda
-            , test "((x : Int) -> x) y -- NameNotFound on input" <|
-                \_ ->
-                    FVM.new
-                        |> check (Call (Lambda ( "x", IntT ) (Load "x")) (Load "y"))
-                        |> Expect.equal (Err (NameNotFound "y"))
-
             --
-            , test "((x : Int) -> x) 1.1 -- TypeMismatch on input" <|
-                \_ ->
-                    FVM.new
-                        |> check (Call (Lambda ( "x", IntT ) (Load "x")) (Number 1.1))
-                        |> Expect.equal (Err (TypeMismatch (Number 1.1) IntT))
-
-            --
-            , test "((x : Int) -> x) 1 -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> check (Call (Lambda ( "x", IntT ) (Load "x")) (Int 1))
-                        |> Expect.equal (Ok (Call (Lambda ( "x", IntT ) (Load "x")) (Int 1)))
-
-            -- Call Input
-            , test "(Int) 1 -- CallNonFunction" <|
-                \_ ->
-                    FVM.new
-                        |> check (Call (Input IntT) (Int 1))
-                        |> Expect.equal (Err (CallNonFunction (Input IntT) (Int 1)))
-
-            --
-            , test "(Int -> Number) x -- NameNotFound on input" <|
-                \_ ->
-                    FVM.new
-                        |> check (Call (Input (LambdaT IntT NumberT)) (Load "x"))
-                        |> Expect.equal (Err (NameNotFound "x"))
-
-            --
-            , test "(Int -> Number) 1.1 -- TypeMismatch" <|
+            , test "(Int -> Number) 1.1 -- TypeMismatch -- typecheck on non-generic input" <|
                 \_ ->
                     FVM.new
                         |> check (Call (Input (LambdaT IntT NumberT)) (Number 1.1))
@@ -313,7 +263,7 @@ suite =
                         |> check (Call (Input (LambdaT IntT NumberT)) (Int 1))
                         |> Expect.equal (Ok (Call (Input (LambdaT IntT NumberT)) (Int 1)))
 
-            -- Call with generic types
+            --
             , test "(a -> Number) 1 -- ok" <|
                 \_ ->
                     FVM.new
@@ -324,20 +274,7 @@ suite =
                         |> Expect.equal (Ok (Call (Input (LambdaT (GenericT "a") NumberT)) (Int 1)))
 
             --
-            , test "(a -> a -> Number) 1 2.2 -- TypeMismatch" <|
-                \_ ->
-                    FVM.new
-                        |> check
-                            (Call
-                                (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT)))
-                                    (Int 1)
-                                )
-                                (Number 2.2)
-                            )
-                        |> Expect.equal (Err (TypeMismatch (Number 2.2) IntT))
-
-            --
-            , test "(a -> a -> a -> Number) 1 2 3.3 -- TypeMismatch" <|
+            , test "(a -> a -> a -> Number) 1 2 3.3 -- TypeMismatch typecheck on generic input" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -371,22 +308,21 @@ suite =
 
         -- CaseOf
         , describe "CaseOf"
-            [ -- Validation
-              test "case X -> Number of -- TypeNotFound on input expression" <|
+            [ test "case X -> Number of -- TypeNotFound -- typeOf on input" <|
                 \_ ->
                     FVM.new
                         |> check (CaseOf ( Type (NameT "X" []), NumberT ) [])
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
-            , test "case 1 -> X of -- TypeNotFound on output type" <|
+            , test "case 1 -> X of -- TypeNotFound -- checkT on output type" <|
                 \_ ->
                     FVM.new
                         |> check (CaseOf ( Int 1, NameT "X" [] ) [])
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
-            , test "case 1 -> Number of 1.1 -> 2.2 -- TypeMismatch on input" <|
+            , test "case 1 -> Number of 1.1 -> 2.2 -- TypeMismatch -- typecheckP on input" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -396,7 +332,17 @@ suite =
                         |> Expect.equal (Err (PatternMismatch (NumberP 1.1) IntT))
 
             --
-            , test "case 1 -> Number of 1 -> 2 -- TypeMismatch on output" <|
+            , test "case 1 -> Int of x -> x -- ok -- withPattern" <|
+                \_ ->
+                    FVM.new
+                        |> check
+                            (CaseOf ( Int 1, IntT )
+                                [ ( NameP (AnyP IntT) "x", Load "x" ) ]
+                            )
+                        |> Expect.equal (Ok (CaseOf ( Int 1, IntT ) [ ( NameP (AnyP IntT) "x", Load "x" ) ]))
+
+            --
+            , test "case 1 -> Number of 1 -> 2 -- TypeMismatch -- typecheck on output" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -406,7 +352,7 @@ suite =
                         |> Expect.equal (Err (TypeMismatch (Int 2) NumberT))
 
             --
-            , test "case 1 -> Number of 1 -> 1.1 -- CasesMissing" <|
+            , test "case 1 -> Number of 1 -> 1.1 -- CasesMissing -- on non-record" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -416,7 +362,7 @@ suite =
                         |> Expect.equal (Err (CasesMissing ( Int 1, NumberT ) [ AnyC IntT ]))
 
             --
-            , test "case 1 -> Int of _ -> x -- NameNotFound" <|
+            , test "case 1 -> Int of _ -> x -- NameNotFound -- checkCase" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -436,7 +382,7 @@ suite =
                         |> Expect.equal (Ok (CaseOf ( Int 1, IntT ) [ ( NameP (AnyP IntT) "x", Load "x" ) ]))
 
             --
-            , test "case 1 -> Number of 1 -> 1.1; 1 -> 2.2 -- CaseAlreadyCovered" <|
+            , test "case 1 -> Number of 1 -> 1.1; 1 -> 2.2 -- CaseAlreadyCovered -- isCaseCovered" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -448,7 +394,7 @@ suite =
                         |> Expect.equal (Err (CaseAlreadyCovered ( Int 1, NumberT ) ( IntP 1, Number 2.2 )))
 
             --
-            , test "case 1 -> Number of _ -> 1.1; 1 -> 2.2 -- CaseAlreadyCovered" <|
+            , test "case 1 -> Number of _ -> 1.1; 1 -> 2.2 -- CaseAlreadyCovered -- isCaseCovered" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -472,7 +418,7 @@ suite =
                         |> Expect.equal (Ok (CaseOf ( Int 1, NumberT ) [ ( IntP 1, Number 1.1 ), ( AnyP IntT, Number 2.2 ) ]))
 
             -- Tuples
-            , test "case (1, 2) -> Number of (3, 4) -> 1.1 -- CasesMissing" <|
+            , test "case (1, 2) -> Number of (3, 4) -> 1.1 -- CasesMissing -- on non-record with combinations" <|
                 \_ ->
                     FVM.new
                         |> check
@@ -492,7 +438,7 @@ suite =
                         |> Expect.equal (Ok (CaseOf ( Tuple [ Int 1, Number 2.2 ], NumberT ) [ ( TupleP [ NameP (AnyP IntT) "x", NameP (AnyP NumberT) "y" ], Load "y" ) ]))
 
             -- Records
-            , test "case {} -> Int of -- MissingCases" <|
+            , test "case {} -> Int of -- MissingCases -- on records" <|
                 \_ ->
                     FVM.new
                         |> check (CaseOf ( Record Dict.empty, IntT ) [])
@@ -552,7 +498,7 @@ suite =
                         |> Expect.equal (Ok (CaseOf ( Constructor ( "T", [] ) "A" [], NumberT ) [ ( ConstructorP ( "T", [] ) "A" [], Number 1.1 ) ]))
 
             --
-            , test "type T = A | B (b : Int); case T.A -> Int of A -> 1 -- CasesMissing" <|
+            , test "type T = A | B (b : Int); case T.A -> Int of A -> 1 -- CasesMissing -- with many constructors" <|
                 \_ ->
                     FVM.new
                         |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ), ( "B", ( [ ( "b", IntT ) ], [] ) ) ])
@@ -565,7 +511,7 @@ suite =
                         |> Expect.equal (Err (CasesMissing ( Constructor ( "T", [] ) "A" [], IntT ) [ ConstructorC ( "T", [] ) "B" [ AnyC IntT ] ]))
 
             --
-            , test "type T = A | B (b : Int); case T.A -> Int of A -> 1; B 2 -> 3 -- CasesMissing" <|
+            , test "type T = A | B (b : Int); case T.A -> Int of A -> 1; B 2 -> 3 -- CasesMissing with many constructors" <|
                 \_ ->
                     FVM.new
                         |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ), ( "B", ( [ ( "b", IntT ) ], [] ) ) ])
