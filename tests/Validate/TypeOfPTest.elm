@@ -10,16 +10,18 @@ import Test exposing (Test, describe, test)
 suite : Test
 suite =
     describe "typeOfP"
-        -- AnyP
-        [ describe "AnyP"
-            [ test "_ : X -- TypeNotFound" <|
+        -- Validation
+        [ describe "validation"
+            [ test "_ : X -- TypeNotFound -- checkP pattern" <|
                 \_ ->
                     FVM.new
                         |> typeOfP (AnyP (NameT "X" []))
                         |> Expect.equal (Err (TypeNotFound "X"))
+            ]
 
-            --
-            , test "_ : Int -- ok" <|
+        -- AnyP
+        , describe "AnyP"
+            [ test "_ : Int -- ok" <|
                 \_ ->
                     FVM.new
                         |> typeOfP (AnyP IntT)
@@ -71,7 +73,7 @@ suite =
                         |> Expect.equal (Ok (TupleT []))
 
             --
-            , test "(_ : X) -- TypeNotFound" <|
+            , test "(_ : X) -- TypeNotFound -- typeOfP on List" <|
                 \_ ->
                     FVM.new
                         |> typeOfP (TupleP [ AnyP (NameT "X" []) ])
@@ -94,50 +96,20 @@ suite =
                         |> Expect.equal (Ok (RecordT Dict.empty))
 
             --
-            , test "{a : X} -- TypeNotFound" <|
-                \_ ->
-                    FVM.new
-                        |> typeOfP (RecordP (Dict.fromList [ ( "a", NameT "X" [] ) ]))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
             , test "{a : Int} -- ok" <|
                 \_ ->
                     FVM.new
-                        |> typeOfP (RecordP (Dict.fromList [ ( "a", IntT ) ]))
-                        |> Expect.equal (Ok (RecordT (Dict.fromList [ ( "a", IntT ) ])))
+                        |> typeOfP (RecordP (Dict.singleton "a" IntT))
+                        |> Expect.equal (Ok (RecordT (Dict.singleton "a" IntT)))
             ]
 
         -- ConstructorP
         , describe "ConstructorP"
-            [ test "X.A -- TypeNotFound" <|
+            [ test "type T Int = A; (T 1).A -- ok" <|
                 \_ ->
                     FVM.new
-                        |> typeOfP (ConstructorP ( "X", [] ) "A" [])
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "type T; (T 1).A -- TypeInputsMismatch" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [] ) Dict.empty
+                        |> withType ( "T", [ IntT ] ) (Dict.singleton "A" ( [], [] ))
                         |> Result.andThen (typeOfP (ConstructorP ( "T", [ Int 1 ] ) "A" []))
-                        |> Expect.equal (Err (TypeInputsMismatch "T" { got = [ IntT ], expected = [] }))
-
-            --
-            , test "type T Int; (T 1).A -- ConstructorInputsMismatch" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
-                        |> Result.andThen (typeOfP (ConstructorP ( "T", [] ) "A" [ IntP 1 ]))
-                        |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ IntT ], expected = [] }))
-
-            --
-            , test "type T Int = A (x : Int); (T 1).A 2 -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [ IntT ] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
-                        |> Result.andThen (typeOfP (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ]))
                         |> Expect.equal (Ok (NameT "T" [ Int 1 ]))
             ]
         ]
