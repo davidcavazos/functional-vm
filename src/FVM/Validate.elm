@@ -10,7 +10,7 @@ module FVM.Validate exposing
     )
 
 import Dict exposing (Dict)
-import FVM exposing (Case(..), Error(..), Expression(..), Package, Pattern(..), Type(..))
+import FVM exposing (Case(..), Error(..), Expression(..), Package, PackageErrors, Pattern(..), Type(..))
 import FVM.Package exposing (letName)
 import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
 import Result
@@ -22,7 +22,7 @@ import Result
 -- VALIDATE MODULE
 
 
-validate : Package -> Result { types : Dict String Error, names : Dict String Error } Package
+validate : Package -> Result PackageErrors Package
 validate m =
     let
         typeErrors =

@@ -3,9 +3,9 @@ module FVM exposing
     , Error(..)
     , Expression(..)
     , Package
+    , PackageErrors
     , Pattern(..)
     , Type(..)
-    , TypeDefinition
     )
 
 import Dict exposing (Dict)
@@ -16,17 +16,15 @@ import Dict exposing (Dict)
 
 
 type alias Package =
-    { types : Dict String TypeDefinition
+    { types : Dict String ( List Type, Dict String (List Type) )
     , names : Dict String Expression
     }
 
 
-type alias NamedType =
-    ( String, List Expression )
-
-
-type alias TypeDefinition =
-    ( List Type, Dict String (List Type) )
+type alias PackageErrors =
+    { types : Dict String Error
+    , names : Dict String Error
+    }
 
 
 type Expression
@@ -77,13 +75,13 @@ type Error
     = CallNonFunction Expression Expression
     | CaseAlreadyCovered ( Expression, Type ) ( Pattern, Expression )
     | CasesMissing ( Expression, Type ) (List Case)
-    | ConstructorInputsMismatch NamedType String { got : List Type, expected : List Type }
-    | ConstructorNotFound NamedType String
+    | ConstructorInputsMismatch ( String, List Expression ) String { got : List Type, expected : List Type }
+    | ConstructorNotFound ( String, List Expression ) String
     | GenericTIsAlreadyBound String
     | NameAlreadyExists String { got : Expression, existing : Expression }
     | NameNotFound String
     | PatternMismatch Pattern Type
-    | TypeAlreadyExists String { got : TypeDefinition, existing : TypeDefinition }
+    | TypeAlreadyExists String { got : ( List Type, Dict String (List Type) ), existing : ( List Type, Dict String (List Type) ) }
     | TypeInputsMismatch String { got : List Type, expected : List Type }
     | TypeMismatch Expression Type
     | TypeNotFound String
