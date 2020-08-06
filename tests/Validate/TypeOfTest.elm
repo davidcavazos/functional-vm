@@ -3,23 +3,25 @@ module Validate.TypeOfTest exposing (suite)
 import Dict
 import Expect
 import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..), new)
-import FVM.Validate exposing (typeOf, withName, withType)
+import FVM.Validate exposing (typeOf, withType)
 import Test exposing (Test, describe, test)
 
 
 suite : Test
 suite =
     describe "typeOf"
-        -- Type
-        [ describe "Type"
-            [ test "X -- TypeNotFound" <|
+        -- Validation
+        [ describe "validation"
+            [ test "X -- TypeNotFound -- check expression" <|
                 \_ ->
                     FVM.new
                         |> typeOf (Type (NameT "X" []))
                         |> Expect.equal (Err (TypeNotFound "X"))
+            ]
 
-            --
-            , test "Int -- ok" <|
+        -- Type
+        , describe "Type"
+            [ test "Int -- ok" <|
                 \_ ->
                     FVM.new
                         |> typeOf (Type IntT)
@@ -53,11 +55,11 @@ suite =
                         |> Expect.equal (Ok (TupleT []))
 
             --
-            , test "(1, x) -- NameNotFound" <|
+            , test "(X) -- TypeNotFound -- typeOf on List" <|
                 \_ ->
                     FVM.new
-                        |> typeOf (Tuple [ Int 1, Load "x" ])
-                        |> Expect.equal (Err (NameNotFound "x"))
+                        |> typeOf (Tuple [ Type (NameT "X" []) ])
+                        |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "(1, 2) -- ok" <|
@@ -76,11 +78,11 @@ suite =
                         |> Expect.equal (Ok (RecordT Dict.empty))
 
             --
-            , test "(a = 1, b = x) -- NameNotFound" <|
+            , test "(a = X) -- TypeNotFound -- typeOf on Dict" <|
                 \_ ->
                     FVM.new
-                        |> typeOf (Record (Dict.fromList [ ( "a", Int 1 ), ( "b", Load "x" ) ]))
-                        |> Expect.equal (Err (NameNotFound "x"))
+                        |> typeOf (Record (Dict.singleton "a" (Type (NameT "X" []))))
+                        |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "(a = 1, b = 1.1) -- ok" <|
@@ -92,58 +94,29 @@ suite =
 
         -- Constructor
         , describe "Constructor"
-            [ test "T.A -- TypeNotFound" <|
+            [ test "type T Int = A; (T 1).A -- ok" <|
                 \_ ->
                     FVM.new
-                        |> typeOf (Constructor ( "T", [] ) "A" [])
-                        |> Expect.equal (Err (TypeNotFound "T"))
-
-            --
-            , test "type T Int; T.A -- TypeInputsMismatch on type inputs" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [ IntT ] ) Dict.empty
-                        |> Result.andThen (typeOf (Constructor ( "T", [] ) "A" []))
-                        |> Expect.equal (Err (TypeInputsMismatch "T" { got = [], expected = [ IntT ] }))
-
-            --
-            , test "type T; T.A -- ConstructorNotFound" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [] ) Dict.empty
-                        |> Result.andThen (typeOf (Constructor ( "T", [] ) "A" []))
-                        |> Expect.equal (Err (ConstructorNotFound ( "T", [] ) "A"))
-
-            --
-            , test "type T = A; T.A -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
-                        |> Result.andThen (typeOf (Constructor ( "T", [] ) "A" []))
-                        |> Expect.equal (Ok (NameT "T" []))
-
-            --
-            , test "type T Int = A; (T 1).A -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> withType ( "T", [ IntT ] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
+                        |> withType ( "T", [ IntT ] ) (Dict.singleton "A" ( [], [] ))
                         |> Result.andThen (typeOf (Constructor ( "T", [ Int 1 ] ) "A" []))
                         |> Expect.equal (Ok (NameT "T" [ Int 1 ]))
             ]
 
         -- Input
         , describe "Input"
-            [ test "X -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> typeOf (Input (NameT "X" []))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "Int -- ok" <|
+            [ test "Int -- ok" <|
                 \_ ->
                     FVM.new
                         |> typeOf (Input IntT)
+                        |> Expect.equal (Ok IntT)
+            ]
+
+        -- Let
+        , describe "Let"
+            [ test "let x = 1; 2 -- ok" <|
+                \_ ->
+                    FVM.new
+                        |> typeOf (Let ( "x", Int 1 ) (Int 2))
                         |> Expect.equal (Ok IntT)
             ]
 
@@ -159,8 +132,7 @@ suite =
             , test "let x = 1; x-- ok" <|
                 \_ ->
                     FVM.new
-                        |> withName "x" (Int 1)
-                        |> Result.andThen (typeOf (Load "x"))
+                        |> typeOf (Let ( "x", Int 1 ) (Load "x"))
                         |> Expect.equal (Ok IntT)
             ]
 
@@ -192,15 +164,6 @@ suite =
                     FVM.new
                         |> typeOf (Lambda ( "x", IntT ) (Load "x"))
                         |> Expect.equal (Ok (LambdaT IntT IntT))
-            ]
-
-        -- Let
-        , describe "Let"
-            [ test "let x = 1; x -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> typeOf (Let (Dict.singleton "x" (Int 1)) (Load "x"))
-                        |> Expect.equal (Ok IntT)
             ]
 
         -- Call

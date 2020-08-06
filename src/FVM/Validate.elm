@@ -6,7 +6,6 @@ module FVM.Validate exposing
     , typeOfP
     , typecheck
     , typecheckP
-    , withName
     , withType
     )
 
@@ -110,6 +109,12 @@ check expression m =
             Result.map (\_ -> expression)
                 (checkT typ m)
 
+        Let ( name, value ) output ->
+            Result.andThen
+                (\_ -> Result.andThen (check output) (withName name value m))
+                (check value m)
+                |> Result.map (\_ -> expression)
+
         Load name ->
             Result.map (\_ -> expression)
                 (getName name m)
@@ -120,11 +125,6 @@ check expression m =
                 (Result.andThen (check output)
                     (withName inputName (Input inputT) m)
                 )
-
-        Let variables output ->
-            Result.andThen
-                (\mod -> Result.map (\_ -> expression) (check output mod))
-                (withVariables variables m)
 
         Call _ _ ->
             Result.map (\_ -> expression)
@@ -348,6 +348,9 @@ typeOf expression m =
                 Input typ ->
                     Ok typ
 
+                Let ( name, value ) output ->
+                    Result.andThen (typeOf output) (withName name value m)
+
                 Load name ->
                     Result.andThen (\e -> typeOf e m)
                         (getName name m)
@@ -357,10 +360,6 @@ typeOf expression m =
                         (Result.andThen (typeOf output)
                             (withName inputName (Input inputT) m)
                         )
-
-                Let variables output ->
-                    Result.andThen (typeOf output)
-                        (withVariables variables m)
 
                 Call function input ->
                     case typeOf function m of
@@ -590,10 +589,15 @@ withType ( typeName, typeInputTypes ) constructors m =
                 (\_ ( namedTs, _ ) -> List.map Tuple.second namedTs)
                 constructors
     in
-    Dict.foldl
-        (\name inputTypes -> Result.andThen (withTypeConstructor typeName name inputTypes))
-        (Ok { m | types = Dict.insert typeName ( typeInputTypes, ctors ) m.types })
-        constructors
+    case Dict.get typeName m.types of
+        Just tdef ->
+            Err (TypeAlreadyExists typeName { got = ( typeInputTypes, ctors ), existing = tdef })
+
+        Nothing ->
+            Dict.foldl
+                (\name inputTypes -> Result.andThen (withTypeConstructor typeName name inputTypes))
+                (Ok { m | types = Dict.insert typeName ( typeInputTypes, ctors ) m.types })
+                constructors
 
 
 withTypeConstructor : String -> String -> ( List ( String, Type ), List Expression ) -> Module -> Result Error Module
@@ -608,20 +612,6 @@ withTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
                 namedInputTypes
     in
     withName name ctor m
-
-
-withVariables : Dict String Expression -> Module -> Result Error Module
-withVariables variables m =
-    Dict.foldl
-        (\name value ->
-            Result.andThen
-                (\mod ->
-                    Result.andThen (\_ -> withName name value mod)
-                        (check value mod)
-                )
-        )
-        (Ok m)
-        variables
 
 
 withPattern : Pattern -> Module -> Result Error Module

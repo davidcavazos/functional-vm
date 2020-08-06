@@ -3,7 +3,7 @@ module Validate.CheckTest exposing (suite)
 import Dict
 import Expect
 import FVM exposing (Case(..), Error(..), Expression(..), Pattern(..), Type(..), new)
-import FVM.Validate exposing (check, withName, withType)
+import FVM.Validate exposing (check, withType)
 import Test exposing (Test, describe, test)
 
 
@@ -148,6 +148,36 @@ suite =
                         |> Expect.equal (Ok (Input IntT))
             ]
 
+        -- Let
+        , describe "Let"
+            [ test "let x = X; 1 -- TypeNotFound -- check value" <|
+                \_ ->
+                    FVM.new
+                        |> check (Let ( "x", Type (NameT "X" []) ) (Int 1))
+                        |> Expect.equal (Err (TypeNotFound "X"))
+
+            --
+            , test "let x = 1; X -- TypeNotFound -- check output" <|
+                \_ ->
+                    FVM.new
+                        |> check (Let ( "x", Int 1 ) (Type (NameT "X" [])))
+                        |> Expect.equal (Err (TypeNotFound "X"))
+
+            --
+            , test "let x = 1; 2 -- ok" <|
+                \_ ->
+                    FVM.new
+                        |> check (Let ( "x", Int 1 ) (Int 2))
+                        |> Expect.equal (Ok (Let ( "x", Int 1 ) (Int 2)))
+
+            --
+            , test "let x = 1; let x = 2; 3 -- NameAlreadyExists -- withName" <|
+                \_ ->
+                    FVM.new
+                        |> check (Let ( "x", Int 1 ) (Let ( "x", Int 2 ) (Int 3)))
+                        |> Expect.equal (Err (NameAlreadyExists "x" { got = Int 2, existing = Int 1 }))
+            ]
+
         -- Load
         , describe "Load"
             [ test "x -- NameNotFound -- getName" <|
@@ -160,17 +190,8 @@ suite =
             , test "let x = 1; x -- ok" <|
                 \_ ->
                     FVM.new
-                        |> withName "x" (Int 1)
-                        |> Result.andThen (check (Load "x"))
-                        |> Expect.equal (Ok (Load "x"))
-
-            --
-            , test "let x : Int; x -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> withName "x" (Input IntT)
-                        |> Result.andThen (check (Load "x"))
-                        |> Expect.equal (Ok (Load "x"))
+                        |> check (Let ( "x", Int 1 ) (Load "x"))
+                        |> Expect.equal (Ok (Let ( "x", Int 1 ) (Load "x")))
             ]
 
         -- Lambda
@@ -194,44 +215,6 @@ suite =
                     FVM.new
                         |> check (Lambda ( "x", IntT ) (Load "x"))
                         |> Expect.equal (Ok (Lambda ( "x", IntT ) (Load "x")))
-            ]
-
-        -- Let
-        , describe "Let"
-            [ test "let x = X; 1 -- TypeNotFound -- withVariables on definition" <|
-                \_ ->
-                    FVM.new
-                        |> check (Let (Dict.singleton "x" (Type (NameT "X" []))) (Int 1))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "let x = 1; y -- NameNotFound -- check on output" <|
-                \_ ->
-                    FVM.new
-                        |> check (Let (Dict.singleton "x" (Int 1)) (Load "y"))
-                        |> Expect.equal (Err (NameNotFound "y"))
-
-            --
-            , test "let x = 1; x -- ok" <|
-                \_ ->
-                    FVM.new
-                        |> check (Let (Dict.singleton "x" (Int 1)) (Load "x"))
-                        |> Expect.equal (Ok (Let (Dict.singleton "x" (Int 1)) (Load "x")))
-
-            --
-            , test "let x = 1; y = x; y -- ok -- multiple dependent variables" <|
-                \_ ->
-                    FVM.new
-                        |> check
-                            (Let
-                                (Dict.fromList
-                                    [ ( "x", Int 1 )
-                                    , ( "y", Load "x" )
-                                    ]
-                                )
-                                (Load "y")
-                            )
-                        |> Expect.equal (Ok (Let (Dict.fromList [ ( "x", Int 1 ), ( "y", Load "x" ) ]) (Load "y")))
             ]
 
         -- Call
