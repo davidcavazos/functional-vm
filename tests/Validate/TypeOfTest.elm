@@ -257,36 +257,12 @@ suite =
                         |> Expect.equal (Ok NumberT)
             ]
 
-        -- -- CaseOf
-        -- , describe "CaseOf"
-        --     [ test "match 1 to X of -- TypeNotFound" <|
-        --         \_ ->
-        --             FVM.Module.new
-        --                 |> typeOf (CaseOf ( Int 1, (NameT "X" []) ) [])
-        --                 |> Expect.equal (Err (TypeNotFound "X"))
-        --     --
-        --     , test "case 1 -> Number of -- ok" <|
-        --         \_ ->
-        --             FVM.Module.new
-        --                 |> typeOf (CaseOf ( Int 1, NumberT ) [])
-        --                 |> Expect.equal (Ok NumberT)
-        --     --
-        --     , test "match 1 to Number of 1.1 -> 1.1 -- PatternMismatch" <|
-        --         \_ ->
-        --             FVM.Module.new
-        --                 |> typeOf
-        --                     (CaseOf ( Int 1, NumberT )
-        --                         [ ( NumberPattern 1.1, Number 1.1 ) ]
-        --                     )
-        --                 |> Expect.equal (Err (PatternMismatch (NumberPattern 1.1) IntT))
-        --     --
-        --     , test "match 1 to Number of 1 -> x -- NameNotFound" <|
-        --         \_ ->
-        --             FVM.Module.new
-        --                 |> typeOf
-        --                     (CaseOf ( Int 1, NumberT )
-        --                         [ ( IntPattern 1, Load "x" ) ]
-        --                     )
-        --                 |> Expect.equal (Err (NameNotFound "x"))
-        --     ]
+        -- CaseOf
+        , describe "CaseOf"
+            [ test "match 1 to Number of _ -> 1.1 -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (CaseOf ( Int 1, NumberT ) [ ( AnyP IntT, Number 1.1 ) ])
+                        |> Expect.equal (Ok NumberT)
+            ]
         ]

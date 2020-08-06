@@ -372,20 +372,8 @@ typeOf expression m =
                         Err e ->
                             Err e
 
-                CaseOf ( input, outputT ) cases ->
-                    Result.andThen
-                        (\inputT ->
-                            List.foldl
-                                (\( pattern, output ) prevType ->
-                                    Result.map3 (\t _ _ -> t)
-                                        prevType
-                                        (typecheckP pattern inputT m)
-                                        (typecheck output outputT m)
-                                )
-                                (checkT outputT m)
-                                cases
-                        )
-                        (typeOf input m)
+                CaseOf ( _, outputT ) _ ->
+                    Ok outputT
         )
         (check expression m)
 
