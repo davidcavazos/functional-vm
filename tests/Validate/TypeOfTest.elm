@@ -45,69 +45,6 @@ suite =
                         |> Expect.equal (Ok NumberT)
             ]
 
-        -- Input
-        , describe "Input"
-            [ test "X -- ok" <|
-                \_ ->
-                    FVM.Module.new
-                        |> typeOf (Input (NameT "X" []))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "Int -- ok" <|
-                \_ ->
-                    FVM.Module.new
-                        |> typeOf (Input IntT)
-                        |> Expect.equal (Ok IntT)
-            ]
-
-        -- Load
-        , describe "Load"
-            [ test "x -- NameNotFound" <|
-                \_ ->
-                    FVM.Module.new
-                        |> typeOf (Load "x")
-                        |> Expect.equal (Err (NameNotFound "x"))
-
-            --
-            , test "let x = 1; x-- ok" <|
-                \_ ->
-                    FVM.Module.new
-                        |> addName "x" (Int 1)
-                        |> Result.andThen (typeOf (Load "x"))
-                        |> Expect.equal (Ok IntT)
-            ]
-
-        -- Lambda
-        , describe "Lambda"
-            [ test "(x : X) -> 1.1 -- TypeNotFound on input type" <|
-                \_ ->
-                    FVM.Module.new
-                        |> typeOf (Lambda ( "x", NameT "X" [] ) (Int 1))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "(x : Int) -> y -- NameNotFound on output type" <|
-                \_ ->
-                    FVM.Module.new
-                        |> typeOf (Lambda ( "x", IntT ) (Load "y"))
-                        |> Expect.equal (Err (NameNotFound "y"))
-
-            --
-            , test "(x : Int) -> 1.1 -- ok" <|
-                \_ ->
-                    FVM.Module.new
-                        |> typeOf (Lambda ( "x", IntT ) (Number 1.1))
-                        |> Expect.equal (Ok (LambdaT IntT NumberT))
-
-            --
-            , test "(x : Int) -> x -- ok" <|
-                \_ ->
-                    FVM.Module.new
-                        |> typeOf (Lambda ( "x", IntT ) (Load "x"))
-                        |> Expect.equal (Ok (LambdaT IntT IntT))
-            ]
-
         -- Tuple
         , describe "Tuple"
             [ test "() -- ok" <|
@@ -193,6 +130,78 @@ suite =
                         |> addType ( "T", [ IntT ] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
                         |> Result.andThen (typeOf (Constructor ( "T", [ Int 1 ] ) "A" []))
                         |> Expect.equal (Ok (NameT "T" [ Int 1 ]))
+            ]
+
+        -- Input
+        , describe "Input"
+            [ test "X -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Input (NameT "X" []))
+                        |> Expect.equal (Err (TypeNotFound "X"))
+
+            --
+            , test "Int -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Input IntT)
+                        |> Expect.equal (Ok IntT)
+            ]
+
+        -- Load
+        , describe "Load"
+            [ test "x -- NameNotFound" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Load "x")
+                        |> Expect.equal (Err (NameNotFound "x"))
+
+            --
+            , test "let x = 1; x-- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> addName "x" (Int 1)
+                        |> Result.andThen (typeOf (Load "x"))
+                        |> Expect.equal (Ok IntT)
+            ]
+
+        -- Lambda
+        , describe "Lambda"
+            [ test "(x : X) -> 1.1 -- TypeNotFound on input type" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Lambda ( "x", NameT "X" [] ) (Int 1))
+                        |> Expect.equal (Err (TypeNotFound "X"))
+
+            --
+            , test "(x : Int) -> y -- NameNotFound on output type" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Lambda ( "x", IntT ) (Load "y"))
+                        |> Expect.equal (Err (NameNotFound "y"))
+
+            --
+            , test "(x : Int) -> 1.1 -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Lambda ( "x", IntT ) (Number 1.1))
+                        |> Expect.equal (Ok (LambdaT IntT NumberT))
+
+            --
+            , test "(x : Int) -> x -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Lambda ( "x", IntT ) (Load "x"))
+                        |> Expect.equal (Ok (LambdaT IntT IntT))
+            ]
+
+        -- Let
+        , describe "Let"
+            [ test "let x = 1; x -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> typeOf (Let (Dict.singleton "x" (Int 1)) (Load "x"))
+                        |> Expect.equal (Ok IntT)
             ]
 
         -- Call

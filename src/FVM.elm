@@ -43,7 +43,7 @@ type Expression
     | Input Type -- input for Lambda
     | Load String -- x
     | Lambda ( String, Type ) Expression -- (x : Int) -> x
-      -- | Let (List ( String, Expression )) Expression -- let x = 1; let x = 2; x + y
+    | Let (Dict String Expression) Expression -- let x = 1 in x + 1
     | Call Expression Expression -- (f : Int -> Int) 1
     | CaseOf ( Expression, Type ) (List ( Pattern, Expression )) -- case x -> Bool of 1 -> True; _ -> False
 

@@ -80,15 +80,15 @@ suite =
             , test "{a = X} -- TypeNotFound" <|
                 \_ ->
                     FVM.Module.new
-                        |> check (Record (Dict.fromList [ ( "a", Type (NameT "X" []) ) ]))
+                        |> check (Record (Dict.singleton "a" (Type (NameT "X" []))))
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "{a = 1} -- ok" <|
                 \_ ->
                     FVM.Module.new
-                        |> check (Record (Dict.fromList [ ( "a", Int 1 ) ]))
-                        |> Expect.equal (Ok (Record (Dict.fromList [ ( "a", Int 1 ) ])))
+                        |> check (Record (Dict.singleton "a" (Int 1)))
+                        |> Expect.equal (Ok (Record (Dict.singleton "a" (Int 1))))
             ]
 
         -- Constructor
@@ -119,7 +119,7 @@ suite =
             , test "type T = A; T.A -- ok" <|
                 \_ ->
                     FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
+                        |> addType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
                         |> Result.andThen (check (Constructor ( "T", [] ) "A" []))
                         |> Expect.equal (Ok (Constructor ( "T", [] ) "A" []))
 
@@ -127,7 +127,7 @@ suite =
             , test "type T = A; T.A 1 -- ConstructorInputsMismatch" <|
                 \_ ->
                     FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
+                        |> addType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
                         |> Result.andThen (check (Constructor ( "T", [] ) "A" [ Int 1 ]))
                         |> Expect.equal (Err (ConstructorInputsMismatch "T" "A" { got = [ IntT ], expected = [] }))
 
@@ -135,7 +135,7 @@ suite =
             , test "type T = A (x : Int); T.A 1.1 -- ConstructorInputsMismatch" <|
                 \_ ->
                     FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
+                        |> addType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
                         |> Result.andThen (check (Constructor ( "T", [] ) "A" [ Number 1.1 ]))
                         |> Expect.equal (Err (ConstructorInputsMismatch "T" "A" { got = [ NumberT ], expected = [ IntT ] }))
 
@@ -143,7 +143,7 @@ suite =
             , test "type T = A (x : Int); T.A 1 -- ok" <|
                 \_ ->
                     FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
+                        |> addType ( "T", [] ) (Dict.singleton "A" ( [ ( "x", IntT ) ], [] ))
                         |> Result.andThen (check (Constructor ( "T", [] ) "A" [ Int 1 ]))
                         |> Expect.equal (Ok (Constructor ( "T", [] ) "A" [ Int 1 ]))
             ]
@@ -210,6 +210,44 @@ suite =
                     FVM.Module.new
                         |> check (Lambda ( "x", IntT ) (Load "x"))
                         |> Expect.equal (Ok (Lambda ( "x", IntT ) (Load "x")))
+            ]
+
+        -- Let
+        , describe "Let"
+            [ test "let x = X; 1 -- TypeNotFound on definition" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check (Let (Dict.singleton "x" (Type (NameT "X" []))) (Int 1))
+                        |> Expect.equal (Err (TypeNotFound "X"))
+
+            --
+            , test "let x = 1; y -- NameNotFound on output" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check (Let (Dict.singleton "x" (Int 1)) (Load "y"))
+                        |> Expect.equal (Err (NameNotFound "y"))
+
+            --
+            , test "let x = 1; x -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check (Let (Dict.singleton "x" (Int 1)) (Load "x"))
+                        |> Expect.equal (Ok (Let (Dict.singleton "x" (Int 1)) (Load "x")))
+
+            --
+            , test "let x = 1; y = x; y -- ok" <|
+                \_ ->
+                    FVM.Module.new
+                        |> check
+                            (Let
+                                (Dict.fromList
+                                    [ ( "x", Int 1 )
+                                    , ( "y", Load "x" )
+                                    ]
+                                )
+                                (Load "y")
+                            )
+                        |> Expect.equal (Ok (Let (Dict.fromList [ ( "x", Int 1 ), ( "y", Load "x" ) ]) (Load "y")))
             ]
 
         -- Call
@@ -467,9 +505,9 @@ suite =
                     FVM.Module.new
                         |> check
                             (CaseOf ( Record Dict.empty, IntT )
-                                [ ( RecordP (Dict.fromList [ ( "x", IntT ) ]), Int 1 ) ]
+                                [ ( RecordP (Dict.singleton "x" IntT), Int 1 ) ]
                             )
-                        |> Expect.equal (Err (PatternMismatch (RecordP (Dict.fromList [ ( "x", IntT ) ])) (RecordT Dict.empty)))
+                        |> Expect.equal (Err (PatternMismatch (RecordP (Dict.singleton "x" IntT)) (RecordT Dict.empty)))
 
             --
             , test "case {} -> Int of {} -> 1 -- ok" <|
@@ -486,10 +524,10 @@ suite =
                 \_ ->
                     FVM.Module.new
                         |> check
-                            (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ) ]), IntT )
+                            (CaseOf ( Record (Dict.singleton "x" (Int 1)), IntT )
                                 [ ( RecordP Dict.empty, Int 2 ) ]
                             )
-                        |> Expect.equal (Ok (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ) ]), IntT ) [ ( RecordP Dict.empty, Int 2 ) ]))
+                        |> Expect.equal (Ok (CaseOf ( Record (Dict.singleton "x" (Int 1)), IntT ) [ ( RecordP Dict.empty, Int 2 ) ]))
 
             --
             , test "case {x = 1, y = 2} -> Int of {x : Int} -> 3 -- ok" <|
@@ -497,15 +535,15 @@ suite =
                     FVM.Module.new
                         |> check
                             (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), IntT )
-                                [ ( RecordP (Dict.fromList [ ( "x", IntT ) ]), Int 3 ) ]
+                                [ ( RecordP (Dict.singleton "x" IntT), Int 3 ) ]
                             )
-                        |> Expect.equal (Ok (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), IntT ) [ ( RecordP (Dict.fromList [ ( "x", IntT ) ]), Int 3 ) ]))
+                        |> Expect.equal (Ok (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), IntT ) [ ( RecordP (Dict.singleton "x" IntT), Int 3 ) ]))
 
             -- Constructors
             , test "type T = A; case T.A -> Number of A -> 1.1 -- ok" <|
                 \_ ->
                     FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
+                        |> addType ( "T", [] ) (Dict.singleton "A" ( [], [] ))
                         |> Result.andThen
                             (check
                                 (CaseOf ( Constructor ( "T", [] ) "A" [], NumberT )

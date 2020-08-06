@@ -139,6 +139,11 @@ check expression m =
                     (addName inputName (Input inputT) m)
                 )
 
+        Let variables output ->
+            Result.andThen
+                (\mod -> Result.map (\_ -> expression) (check output mod))
+                (withVariables variables m)
+
         Call _ _ ->
             Result.map (\_ -> expression)
                 (checkCall expression Dict.empty m)
@@ -296,6 +301,17 @@ typeOf expression m =
                 Number _ ->
                     Ok NumberT
 
+                Tuple items ->
+                    Result.map TupleT
+                        (andThenList (\x -> typeOf x m) items)
+
+                Record items ->
+                    Result.map RecordT
+                        (andThenDict (\_ x -> typeOf x m) items)
+
+                Constructor ( typeName, typeInputs ) _ _ ->
+                    Ok (NameT typeName typeInputs)
+
                 Input typ ->
                     Ok typ
 
@@ -309,16 +325,9 @@ typeOf expression m =
                             (addName inputName (Input inputT) m)
                         )
 
-                Tuple items ->
-                    Result.map TupleT
-                        (andThenList (\x -> typeOf x m) items)
-
-                Record items ->
-                    Result.map RecordT
-                        (andThenDict (\_ x -> typeOf x m) items)
-
-                Constructor ( typeName, typeInputs ) _ _ ->
-                    Ok (NameT typeName typeInputs)
+                Let variables output ->
+                    Result.andThen (typeOf output)
+                        (withVariables variables m)
 
                 Call function input ->
                     case typeOf function m of
@@ -347,6 +356,20 @@ typeOf expression m =
                         (typeOf input m)
         )
         (check expression m)
+
+
+withVariables : Dict String Expression -> Module -> Result Error Module
+withVariables variables m =
+    Dict.foldl
+        (\name value ->
+            Result.andThen
+                (\mod ->
+                    Result.andThen (\_ -> addName name value mod)
+                        (check value mod)
+                )
+        )
+        (Ok m)
+        variables
 
 
 
