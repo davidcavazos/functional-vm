@@ -7,6 +7,7 @@ module FVM exposing
     , Program
     , Type(..)
     , TypeDefinition
+    , new
     )
 
 import Dict exposing (Dict)
@@ -27,6 +28,10 @@ type alias Module =
     , generics : Dict String Type
     , names : Dict String Expression
     }
+
+
+type alias NamedType =
+    ( String, List Expression )
 
 
 type alias TypeDefinition =
@@ -81,8 +86,8 @@ type Error
     = CallNonFunction Expression Expression
     | CaseAlreadyCovered ( Expression, Type ) ( Pattern, Expression )
     | CasesMissing ( Expression, Type ) (List Case)
-    | ConstructorInputsMismatch String String { got : List Type, expected : List Type }
-    | ConstructorNotFound String String
+    | ConstructorInputsMismatch NamedType String { got : List Type, expected : List Type }
+    | ConstructorNotFound NamedType String
     | GenericTIsAlreadyBound String
     | NameAlreadyExists String { got : Expression, existing : Expression }
     | NameNotFound String
@@ -92,3 +97,15 @@ type Error
     | TypeMismatch Expression Type
     | TypeNotFound String
     | VariableMismatch String Type Expression
+
+
+
+-- NEW
+
+
+new : Module
+new =
+    { types = Dict.empty
+    , generics = Dict.empty
+    , names = Dict.empty
+    }

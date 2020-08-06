@@ -2,9 +2,8 @@ module Validate.CheckPTest exposing (suite)
 
 import Dict
 import Expect
-import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..))
-import FVM.Module exposing (addType)
-import FVM.Validate exposing (checkP)
+import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..), new)
+import FVM.Validate exposing (checkP, withType)
 import Test exposing (Test, describe, test)
 
 
@@ -13,48 +12,48 @@ suite =
     describe "checkP"
         -- AnyP
         [ describe "AnyP"
-            [ test "_ : X -- ok" <|
+            [ test "_ : X -- ok -- checkT" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (AnyP (NameT "X" []))
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "_ : Int -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (AnyP IntT)
                         |> Expect.equal (Ok (AnyP IntT))
             ]
 
         -- NameP
         , describe "NameP"
-            [ test "X as x -- TypeNotFound" <|
+            [ test "X as x -- TypeNotFound -- checkP" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (NameP (AnyP (NameT "X" [])) "x")
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "Int as x -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (NameP (AnyP IntT) "x")
                         |> Expect.equal (Ok (NameP (AnyP IntT) "x"))
             ]
 
         -- TypeP
         , describe "TypeP"
-            [ test "X -- TypeNotFound" <|
+            [ test "X -- TypeNotFound -- checkT" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (TypeP (NameT "X" []))
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "Int -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (TypeP IntT)
                         |> Expect.equal (Ok (TypeP IntT))
             ]
@@ -63,7 +62,7 @@ suite =
         , describe "IntP"
             [ test "1 -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (IntP 1)
                         |> Expect.equal (Ok (IntP 1))
             ]
@@ -72,7 +71,7 @@ suite =
         , describe "NumberP"
             [ test "1.1 -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (NumberP 1.1)
                         |> Expect.equal (Ok (NumberP 1.1))
             ]
@@ -81,21 +80,21 @@ suite =
         , describe "TupleP"
             [ test "() -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (TupleP [])
                         |> Expect.equal (Ok (TupleP []))
 
             --
-            , test "(X) -- TypeNotFound" <|
+            , test "(X) -- TypeNotFound -- checkP on List" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (TupleP [ TypeP (NameT "X" []) ])
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "(1) -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (TupleP [ IntP 1 ])
                         |> Expect.equal (Ok (TupleP [ IntP 1 ]))
             ]
@@ -104,78 +103,78 @@ suite =
         , describe "RecordP"
             [ test "{} -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (RecordP Dict.empty)
                         |> Expect.equal (Ok (RecordP Dict.empty))
 
             --
-            , test "{a : X} -- TypeNotFound" <|
+            , test "{a : X} -- TypeNotFound -- checkT on Dict" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (RecordP (Dict.fromList [ ( "A", NameT "X" [] ) ]))
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
             , test "{a : Int} -- ok" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (RecordP (Dict.fromList [ ( "a", IntT ) ]))
                         |> Expect.equal (Ok (RecordP (Dict.fromList [ ( "a", IntT ) ])))
             ]
 
         -- ConstructorP
         , describe "ConstructorP"
-            [ test "X.A -- TypeNotFound" <|
+            [ test "X.A -- TypeNotFound -- checkT" <|
                 \_ ->
-                    FVM.Module.new
+                    FVM.new
                         |> checkP (ConstructorP ( "X", [] ) "A" [])
                         |> Expect.equal (Err (TypeNotFound "X"))
 
             --
-            , test "type T; (T 1).A -- TypeInputsMismatch" <|
+            , test "type T; (T 1).A -- TypeInputsMismatch -- getTypeDefinition" <|
                 \_ ->
-                    FVM.Module.new
-                        |> addType ( "T", [] ) Dict.empty
+                    FVM.new
+                        |> withType ( "T", [] ) Dict.empty
                         |> Result.andThen (checkP (ConstructorP ( "T", [ Int 1 ] ) "A" []))
                         |> Expect.equal (Err (TypeInputsMismatch "T" { got = [ IntT ], expected = [] }))
 
             --
             , test "type T; T.A -- ConstructorNotFound" <|
                 \_ ->
-                    FVM.Module.new
-                        |> addType ( "T", [] ) Dict.empty
+                    FVM.new
+                        |> withType ( "T", [] ) Dict.empty
                         |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" []))
-                        |> Expect.equal (Err (ConstructorNotFound "T" "A"))
+                        |> Expect.equal (Err (ConstructorNotFound ( "T", [] ) "A"))
 
             --
             , test "type T = A; T.A -- ok" <|
                 \_ ->
-                    FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
+                    FVM.new
+                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
                         |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" []))
                         |> Expect.equal (Ok (ConstructorP ( "T", [] ) "A" []))
 
             --
             , test "type T Int; (T 1).A -- ConstructorInputsMismatch" <|
                 \_ ->
-                    FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
+                    FVM.new
+                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [], [] ) ) ])
                         |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" [ IntP 1 ]))
-                        |> Expect.equal (Err (ConstructorInputsMismatch "T" "A" { got = [ IntT ], expected = [] }))
+                        |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ IntT ], expected = [] }))
 
             --
             , test "type T = A (x : Int); T.A 1.1 -- ConstructorInputsMismatch" <|
                 \_ ->
-                    FVM.Module.new
-                        |> addType ( "T", [] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
+                    FVM.new
+                        |> withType ( "T", [] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
                         |> Result.andThen (checkP (ConstructorP ( "T", [] ) "A" [ NumberP 1.1 ]))
-                        |> Expect.equal (Err (ConstructorInputsMismatch "T" "A" { got = [ NumberT ], expected = [ IntT ] }))
+                        |> Expect.equal (Err (ConstructorInputsMismatch ( "T", [] ) "A" { got = [ NumberT ], expected = [ IntT ] }))
 
             --
             , test "type T Int = A (x : Int); (T 1).A 2 -- ok" <|
                 \_ ->
-                    FVM.Module.new
-                        |> addType ( "T", [ IntT ] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
+                    FVM.new
+                        |> withType ( "T", [ IntT ] ) (Dict.fromList [ ( "A", ( [ ( "x", IntT ) ], [] ) ) ])
                         |> Result.andThen (checkP (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ]))
                         |> Expect.equal (Ok (ConstructorP ( "T", [ Int 1 ] ) "A" [ IntP 2 ]))
             ]

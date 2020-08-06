@@ -8,11 +8,12 @@ module FVM.Validate exposing
     , typeOfP
     , typecheck
     , typecheckP
+    , withName
+    , withType
     )
 
 import Dict exposing (Dict)
 import FVM exposing (Case(..), Error(..), Expression(..), Module, Pattern(..), Type(..))
-import FVM.Module exposing (addName, getName, getTypeDefinition)
 import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
 import Result
 
@@ -36,19 +37,8 @@ checkT typ m =
             Ok typ
 
         NameT typeName typeInputs ->
-            Result.andThen
-                (\( typeInputsT, _ ) ->
-                    Result.andThen
-                        (\gotT ->
-                            if gotT == typeInputsT then
-                                Ok typ
-
-                            else
-                                Err (TypeInputsMismatch typeName { got = gotT, expected = typeInputsT })
-                        )
-                        (andThenList (\x -> typeOf x m) typeInputs)
-                )
-                (getTypeDefinition typeName m)
+            Result.map (\_ -> typ)
+                (getTypeDefinition ( typeName, typeInputs ) m)
 
         TupleT itemsT ->
             Result.map (\_ -> typ)
@@ -103,9 +93,9 @@ check expression m =
             Result.map (\_ -> expression)
                 (andThenDict (\_ x -> check x m) items)
 
-        Constructor ( typeName, typeInputs ) name inputs ->
+        Constructor (( typeName, typeInputs ) as namedT) name inputs ->
             andThen2
-                (\_ ( _, ctors ) ->
+                (\_ ctors ->
                     case Dict.get name ctors of
                         Just inputsT ->
                             Result.andThen
@@ -114,15 +104,15 @@ check expression m =
                                         Ok expression
 
                                     else
-                                        Err (ConstructorInputsMismatch typeName name { got = gotT, expected = inputsT })
+                                        Err (ConstructorInputsMismatch namedT name { got = gotT, expected = inputsT })
                                 )
                                 (andThenList (\x -> typeOf x m) inputs)
 
                         Nothing ->
-                            Err (ConstructorNotFound typeName name)
+                            Err (ConstructorNotFound namedT name)
                 )
                 (checkT (NameT typeName typeInputs) m)
-                (getTypeDefinition typeName m)
+                (getTypeDefinition namedT m)
 
         Input typ ->
             Result.map (\_ -> expression)
@@ -136,7 +126,7 @@ check expression m =
             Result.map2 (\_ _ -> expression)
                 (checkT inputT m)
                 (Result.andThen (check output)
-                    (addName inputName (Input inputT) m)
+                    (withName inputName (Input inputT) m)
                 )
 
         Let variables output ->
@@ -246,43 +236,6 @@ isCaseCovered pattern seenPatterns =
         seenPatterns
 
 
-withPattern : Pattern -> Module -> Result Error Module
-withPattern pattern m =
-    Result.andThen
-        (\typ ->
-            case pattern of
-                AnyP _ ->
-                    Ok m
-
-                NameP p name ->
-                    Result.andThen (addName name (Input typ))
-                        (withPattern p m)
-
-                TypeP _ ->
-                    Ok m
-
-                IntP _ ->
-                    Ok m
-
-                NumberP _ ->
-                    Ok m
-
-                TupleP itemsP ->
-                    List.foldl (\p -> Result.andThen (withPattern p))
-                        (Ok m)
-                        itemsP
-
-                RecordP _ ->
-                    Ok m
-
-                ConstructorP _ _ inputsP ->
-                    List.foldl (\p -> Result.andThen (withPattern p))
-                        (Ok m)
-                        inputsP
-        )
-        (typeOfP pattern m)
-
-
 
 -- TYPE OF EXPRESSION
 
@@ -322,7 +275,7 @@ typeOf expression m =
                 Lambda ( inputName, inputT ) output ->
                     Result.map (LambdaT inputT)
                         (Result.andThen (typeOf output)
-                            (addName inputName (Input inputT) m)
+                            (withName inputName (Input inputT) m)
                         )
 
                 Let variables output ->
@@ -356,20 +309,6 @@ typeOf expression m =
                         (typeOf input m)
         )
         (check expression m)
-
-
-withVariables : Dict String Expression -> Module -> Result Error Module
-withVariables variables m =
-    Dict.foldl
-        (\name value ->
-            Result.andThen
-                (\mod ->
-                    Result.andThen (\_ -> addName name value mod)
-                        (check value mod)
-                )
-        )
-        (Ok m)
-        variables
 
 
 
@@ -422,9 +361,9 @@ checkP pattern m =
             Result.map (\_ -> pattern)
                 (checkT (RecordT itemsT) m)
 
-        ConstructorP ( typeName, typeInputs ) name inputsP ->
-            andThen2
-                (\_ ( _, ctors ) ->
+        ConstructorP namedT name inputsP ->
+            Result.andThen
+                (\ctors ->
                     case Dict.get name ctors of
                         Just inputsT ->
                             Result.andThen
@@ -433,15 +372,14 @@ checkP pattern m =
                                         Ok pattern
 
                                     else
-                                        Err (ConstructorInputsMismatch typeName name { got = gotT, expected = inputsT })
+                                        Err (ConstructorInputsMismatch namedT name { got = gotT, expected = inputsT })
                                 )
                                 (andThenList (\p -> typeOfP p m) inputsP)
 
                         Nothing ->
-                            Err (ConstructorNotFound typeName name)
+                            Err (ConstructorNotFound namedT name)
                 )
-                (checkT (NameT typeName typeInputs) m)
-                (getTypeDefinition typeName m)
+                (getTypeDefinition namedT m)
 
 
 
@@ -577,14 +515,14 @@ expandCase pattern case_ m =
                         case case_ of
                             AnyC _ ->
                                 Result.andThen
-                                    (\( _, ctors ) ->
+                                    (\ctors ->
                                         Dict.map
                                             (\nameC inputsT -> ConstructorC ( typeName, typeInputs ) nameC (List.map AnyC inputsT))
                                             ctors
                                             |> Dict.values
                                             |> (\cases -> expandCases pattern cases m)
                                     )
-                                    (getTypeDefinition typeName m)
+                                    (getTypeDefinition namedT m)
 
                             ConstructorC namedTC nameC inputsC ->
                                 if namedT == namedTC && name == nameC then
@@ -614,5 +552,128 @@ caseToPattern case_ =
         TupleC itemsC ->
             TupleP (List.map caseToPattern itemsC)
 
-        ConstructorC namedType name inputsC ->
-            ConstructorP namedType name (List.map caseToPattern inputsC)
+        ConstructorC namedT name inputsC ->
+            ConstructorP namedT name (List.map caseToPattern inputsC)
+
+
+
+---=== MODULE ===---
+--
+-- GET TYPE DEFINITION
+
+
+getTypeDefinition : ( String, List Expression ) -> Module -> Result Error (Dict String (List Type))
+getTypeDefinition ( typeName, typeInputs ) m =
+    case Dict.get typeName m.types of
+        Just ( typeInputsT, ctors ) ->
+            Result.andThen
+                (\gotT ->
+                    if gotT == typeInputsT then
+                        Ok ctors
+
+                    else
+                        Err (TypeInputsMismatch typeName { got = gotT, expected = typeInputsT })
+                )
+                (andThenList (\x -> typeOf x m) typeInputs)
+
+        Nothing ->
+            Err (TypeNotFound typeName)
+
+
+withName : String -> Expression -> Module -> Result Error Module
+withName name value m =
+    case Dict.get name m.names of
+        Just existing ->
+            Err (NameAlreadyExists name { got = value, existing = existing })
+
+        Nothing ->
+            Ok { m | names = Dict.insert name value m.names }
+
+
+getName : String -> Module -> Result Error Expression
+getName name m =
+    case Dict.get name m.names of
+        Just value ->
+            Ok value
+
+        Nothing ->
+            Err (NameNotFound name)
+
+
+withType : ( String, List Type ) -> Dict String ( List ( String, Type ), List Expression ) -> Module -> Result Error Module
+withType ( typeName, typeInputTypes ) constructors m =
+    let
+        ctors =
+            Dict.map
+                (\_ ( namedTs, _ ) -> List.map Tuple.second namedTs)
+                constructors
+    in
+    Dict.foldl
+        (\name inputTypes -> Result.andThen (withTypeConstructor typeName name inputTypes))
+        (Ok { m | types = Dict.insert typeName ( typeInputTypes, ctors ) m.types })
+        constructors
+
+
+withTypeConstructor : String -> String -> ( List ( String, Type ), List Expression ) -> Module -> Result Error Module
+withTypeConstructor typeName name ( namedInputTypes, typeInputs ) m =
+    let
+        ctorInputs =
+            List.map (\( n, _ ) -> Load n) namedInputTypes
+
+        ctor =
+            List.foldr Lambda
+                (Constructor ( typeName, typeInputs ) name ctorInputs)
+                namedInputTypes
+    in
+    withName name ctor m
+
+
+withVariables : Dict String Expression -> Module -> Result Error Module
+withVariables variables m =
+    Dict.foldl
+        (\name value ->
+            Result.andThen
+                (\mod ->
+                    Result.andThen (\_ -> withName name value mod)
+                        (check value mod)
+                )
+        )
+        (Ok m)
+        variables
+
+
+withPattern : Pattern -> Module -> Result Error Module
+withPattern pattern m =
+    Result.andThen
+        (\typ ->
+            case pattern of
+                AnyP _ ->
+                    Ok m
+
+                NameP p name ->
+                    Result.andThen (withName name (Input typ))
+                        (withPattern p m)
+
+                TypeP _ ->
+                    Ok m
+
+                IntP _ ->
+                    Ok m
+
+                NumberP _ ->
+                    Ok m
+
+                TupleP itemsP ->
+                    List.foldl (\p -> Result.andThen (withPattern p))
+                        (Ok m)
+                        itemsP
+
+                RecordP _ ->
+                    Ok m
+
+                ConstructorP _ _ inputsP ->
+                    List.foldl (\p -> Result.andThen (withPattern p))
+                        (Ok m)
+                        inputsP
+        )
+        (typeOfP pattern m)
