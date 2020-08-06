@@ -53,13 +53,8 @@ checkT typ m =
                 (checkT inputT m)
                 (checkT outputT m)
 
-        GenericT name ->
-            case Dict.get name m.generics of
-                Just t ->
-                    Ok t
-
-                Nothing ->
-                    Ok (GenericT name)
+        GenericT _ ->
+            Ok typ
 
         UnionT types ->
             Result.map (\_ -> typ)
