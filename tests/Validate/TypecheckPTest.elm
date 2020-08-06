@@ -1,6 +1,6 @@
 module Validate.TypecheckPTest exposing (suite)
 
-import Dict exposing (Dict)
+import Dict
 import Expect
 import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..), new)
 import FVM.Validate exposing (typecheckP)

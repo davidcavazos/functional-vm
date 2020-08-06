@@ -91,7 +91,7 @@ suite =
                 , test "{x : X} -- TypeNotFound -- checkT on Dict" <|
                     \_ ->
                         FVM.new
-                            |> checkT (RecordT (Dict.fromList [ ( "x", NameT "X" [] ) ]))
+                            |> checkT (RecordT (Dict.singleton "x" (NameT "X" [])))
                             |> Expect.equal (Err (TypeNotFound "X"))
 
                 --
