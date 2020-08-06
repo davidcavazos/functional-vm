@@ -7,7 +7,6 @@ module FVM exposing
     , Program
     , Type(..)
     , TypeDefinition
-    , new
     )
 
 import Dict exposing (Dict)
@@ -96,14 +95,3 @@ type Error
     | TypeMismatch Expression Type
     | TypeNotFound String
     | VariableMismatch String Type Expression
-
-
-
--- NEW
-
-
-new : Module
-new =
-    { types = Dict.empty
-    , names = Dict.empty
-    }
