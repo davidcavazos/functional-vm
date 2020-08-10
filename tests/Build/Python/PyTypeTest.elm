@@ -85,19 +85,19 @@ suite =
             [ test "{}" <|
                 \_ ->
                     pyType (RecordT Dict.empty)
-                        |> Expect.equal "Record({})"
+                        |> Expect.equal "RecordType({})"
 
             --
             , test "{x : Int}" <|
                 \_ ->
                     pyType (RecordT (Dict.singleton "x" IntT))
-                        |> Expect.equal "Record({'x': Int})"
+                        |> Expect.equal "RecordType({'x': Int})"
 
             --
             , test "{x : Int, y : Number}" <|
                 \_ ->
                     pyType (RecordT (Dict.fromList [ ( "x", IntT ), ( "y", NumberT ) ]))
-                        |> Expect.equal "Record({'x': Int, 'y': Number})"
+                        |> Expect.equal "RecordType({'x': Int, 'y': Number})"
             ]
 
         -- LambdaT
