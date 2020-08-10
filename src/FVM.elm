@@ -27,6 +27,18 @@ type alias PackageErrors =
     }
 
 
+type Type
+    = TypeT -- the type of any type
+    | IntT -- Int
+    | NumberT -- Number
+    | NameT String (List Expression) -- Vector 0 Int
+    | TupleT (List Type) -- (Int, Number)
+    | RecordT (Dict String Type) -- (x: Int, y: Number)
+    | LambdaT Type Type -- a -> b
+    | GenericT String -- a
+    | UnionT (List Type) -- Int | Number
+
+
 type Expression
     = Type Type -- Int
     | Int Int -- 42
@@ -40,18 +52,6 @@ type Expression
     | Lambda ( String, Type ) Expression -- (x : Int) -> x
     | Call Expression Expression -- (f : Int -> Int) 1
     | CaseOf ( Expression, Type ) (List ( Pattern, Expression )) -- case x -> Bool of 1 -> True; _ -> False
-
-
-type Type
-    = TypeT -- the type of any type
-    | IntT -- Int
-    | NumberT -- Number
-    | NameT String (List Expression) -- Vector 0 Int
-    | TupleT (List Type) -- (Int, Number)
-    | RecordT (Dict String Type) -- (x: Int, y: Number)
-    | LambdaT Type Type -- a -> b
-    | GenericT String -- a
-    | UnionT (List Type) -- Int | Number
 
 
 type Pattern
