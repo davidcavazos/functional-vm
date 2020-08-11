@@ -43,11 +43,8 @@ validateTypes pkg =
     Dict.map
         (\_ ( typeInputs, ctors ) ->
             Result.map2 (\_ _ -> Nothing)
-                (andThenList (\t -> checkT t pkg) typeInputs)
-                (andThenDict
-                    (\_ inputsT -> andThenList (\t -> checkT t pkg) inputsT)
-                    ctors
-                )
+                (andThenList (checkT pkg) typeInputs)
+                (andThenDict (\_ -> andThenList (checkT pkg)) ctors)
         )
         pkg.types
         |> collectErrors
@@ -80,8 +77,8 @@ collectErrors dict =
 -- CHECK TYPE
 
 
-checkT : Type -> Package -> Result Error Type
-checkT typ pkg =
+checkT : Package -> Type -> Result Error Type
+checkT pkg typ =
     case typ of
         TypeT ->
             Ok typ
@@ -98,23 +95,23 @@ checkT typ pkg =
 
         TupleT itemsT ->
             Result.map (\_ -> typ)
-                (andThenList (\t -> checkT t pkg) itemsT)
+                (andThenList (checkT pkg) itemsT)
 
         RecordT itemsT ->
             Result.map (\_ -> typ)
-                (andThenDict (\_ t -> checkT t pkg) itemsT)
+                (andThenDict (\_ -> checkT pkg) itemsT)
 
         LambdaT inputT outputT ->
             Result.map2 (\_ _ -> typ)
-                (checkT inputT pkg)
-                (checkT outputT pkg)
+                (checkT pkg inputT)
+                (checkT pkg outputT)
 
         GenericT _ ->
             Ok typ
 
         UnionT types ->
             Result.map (\_ -> typ)
-                (andThenList (\t -> checkT t pkg) types)
+                (andThenList (checkT pkg) types)
 
 
 
@@ -128,7 +125,7 @@ check pkg expression =
     case expression of
         Type typ ->
             Result.map (\_ -> expression)
-                (checkT typ pkg)
+                (checkT pkg typ)
 
         Int _ ->
             Ok expression
@@ -181,7 +178,7 @@ check pkg expression =
 
                 Nothing ->
                     Result.map2 (\_ _ -> expression)
-                        (checkT inputT pkg)
+                        (checkT pkg inputT)
                         (check (letName name (Load name inputT) pkg) output)
 
         Call _ _ ->
@@ -214,7 +211,7 @@ check pkg expression =
                             )
                 )
                 (check pkg input)
-                (checkT outputT pkg)
+                (checkT pkg outputT)
 
 
 checkCall : Expression -> Dict String Type -> Package -> Result Error (Dict String Type)
@@ -393,7 +390,7 @@ typecheck expression typ pkg =
                 Err (TypeMismatch expression typ)
         )
         (check pkg expression)
-        (checkT typ pkg)
+        (checkT pkg typ)
 
 
 
@@ -406,13 +403,13 @@ checkP : Pattern -> Package -> Result Error Pattern
 checkP pattern pkg =
     case pattern of
         AnyP t ->
-            Result.map (\_ -> pattern) (checkT t pkg)
+            Result.map (\_ -> pattern) (checkT pkg t)
 
         NameP p _ ->
             Result.map (\_ -> pattern) (checkP p pkg)
 
         TypeP t ->
-            Result.map (\_ -> pattern) (checkT t pkg)
+            Result.map (\_ -> pattern) (checkT pkg t)
 
         IntP _ ->
             Ok pattern
@@ -426,7 +423,7 @@ checkP pattern pkg =
 
         RecordP itemsT ->
             Result.map (\_ -> pattern)
-                (checkT (RecordT itemsT) pkg)
+                (checkT pkg (RecordT itemsT))
 
         ConstructorP namedT name inputsP ->
             Result.andThen
@@ -522,7 +519,7 @@ typecheckP pattern typ pkg =
                         Err (PatternMismatch pattern typ)
         )
         (typeOfP pattern pkg)
-        (checkT typ pkg)
+        (checkT pkg typ)
 
 
 

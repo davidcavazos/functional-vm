@@ -16,8 +16,7 @@ suite =
             [ describe "TypeT"
                 [ test "Type -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT TypeT
+                        checkT FVM.Package.new TypeT
                             |> Expect.equal (Ok TypeT)
                 ]
 
@@ -25,8 +24,7 @@ suite =
             , describe "IntT"
                 [ test "Int -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT IntT
+                        checkT FVM.Package.new IntT
                             |> Expect.equal (Ok IntT)
                 ]
 
@@ -34,8 +32,7 @@ suite =
             , describe "NumberT"
                 [ test "Number -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT NumberT
+                        checkT FVM.Package.new NumberT
                             |> Expect.equal (Ok NumberT)
                 ]
 
@@ -43,17 +40,15 @@ suite =
             , describe "NameT"
                 [ test "type T Int; T 1.1 -- TypeInputsMismatch -- getTypeDefinition" <|
                     \_ ->
-                        FVM.Package.new
-                            |> letType ( "T", [ IntT ] ) Dict.empty
-                            |> checkT (NameT "T" [ Number 1.1 ])
+                        checkT (letType ( "T", [ IntT ] ) Dict.empty FVM.Package.new)
+                            (NameT "T" [ Number 1.1 ])
                             |> Expect.equal (Err (TypeInputsMismatch "T" { got = [ NumberT ], expected = [ IntT ] }))
 
                 --
                 , test "type T Int; T 1 -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> letType ( "T", [ IntT ] ) Dict.empty
-                            |> checkT (NameT "T" [ Int 1 ])
+                        checkT (letType ( "T", [ IntT ] ) Dict.empty FVM.Package.new)
+                            (NameT "T" [ Int 1 ])
                             |> Expect.equal (Ok (NameT "T" [ Int 1 ]))
                 ]
 
@@ -61,22 +56,19 @@ suite =
             , describe "TupleT"
                 [ test "() -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (TupleT [])
+                        checkT FVM.Package.new (TupleT [])
                             |> Expect.equal (Ok (TupleT []))
 
                 --
                 , test "(X) -- TypeNotFound -- checkT on List" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (TupleT [ NameT "X" [] ])
+                        checkT FVM.Package.new (TupleT [ NameT "X" [] ])
                             |> Expect.equal (Err (TypeNotFound "X"))
 
                 --
                 , test "(Int, Number) -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (TupleT [ IntT, NumberT ])
+                        checkT FVM.Package.new (TupleT [ IntT, NumberT ])
                             |> Expect.equal (Ok (TupleT [ IntT, NumberT ]))
                 ]
 
@@ -84,22 +76,19 @@ suite =
             , describe "RecordT"
                 [ test "{} -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (RecordT Dict.empty)
+                        checkT FVM.Package.new (RecordT Dict.empty)
                             |> Expect.equal (Ok (RecordT Dict.empty))
 
                 --
                 , test "{x : X} -- TypeNotFound -- checkT on Dict" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (RecordT (Dict.singleton "x" (NameT "X" [])))
+                        checkT FVM.Package.new (RecordT (Dict.singleton "x" (NameT "X" [])))
                             |> Expect.equal (Err (TypeNotFound "X"))
 
                 --
                 , test "{x : Int, y : Number} -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (RecordT (Dict.fromList [ ( "x", IntT ), ( "y", NumberT ) ]))
+                        checkT FVM.Package.new (RecordT (Dict.fromList [ ( "x", IntT ), ( "y", NumberT ) ]))
                             |> Expect.equal (Ok (RecordT (Dict.fromList [ ( "x", IntT ), ( "y", NumberT ) ])))
                 ]
 
@@ -107,22 +96,19 @@ suite =
             , describe "LambdaT"
                 [ test "X -> Y -- TypeNotFound -- checkT on input type" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (LambdaT (NameT "X" []) (NameT "Y" []))
+                        checkT FVM.Package.new (LambdaT (NameT "X" []) (NameT "Y" []))
                             |> Expect.equal (Err (TypeNotFound "X"))
 
                 --
                 , test "Int -> X -- TypeNotFound -- checkT output type" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (LambdaT IntT (NameT "X" []))
+                        checkT FVM.Package.new (LambdaT IntT (NameT "X" []))
                             |> Expect.equal (Err (TypeNotFound "X"))
 
                 --
                 , test "Int -> Number -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (LambdaT IntT NumberT)
+                        checkT FVM.Package.new (LambdaT IntT NumberT)
                             |> Expect.equal (Ok (LambdaT IntT NumberT))
                 ]
 
@@ -130,8 +116,7 @@ suite =
             , describe "GenericT"
                 [ test "a -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (GenericT "a")
+                        checkT FVM.Package.new (GenericT "a")
                             |> Expect.equal (Ok (GenericT "a"))
                 ]
 
@@ -139,22 +124,19 @@ suite =
             , describe "UnionT"
                 [ test "empty -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (UnionT [])
+                        checkT FVM.Package.new (UnionT [])
                             |> Expect.equal (Ok (UnionT []))
 
                 --
                 , test "Int | X -- TypeNotFound -- checkT on List" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (UnionT [ IntT, NameT "X" [] ])
+                        checkT FVM.Package.new (UnionT [ IntT, NameT "X" [] ])
                             |> Expect.equal (Err (TypeNotFound "X"))
 
                 --
                 , test "Int | Number -- ok" <|
                     \_ ->
-                        FVM.Package.new
-                            |> checkT (UnionT [ IntT, NumberT ])
+                        checkT FVM.Package.new (UnionT [ IntT, NumberT ])
                             |> Expect.equal (Ok (UnionT [ IntT, NumberT ]))
                 ]
             ]
