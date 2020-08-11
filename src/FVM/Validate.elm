@@ -2,7 +2,6 @@ module FVM.Validate exposing
     ( check
     , checkP
     , checkT
-    , typeOfP
     , typecheck
     , typecheckP
     , validate
@@ -11,7 +10,7 @@ module FVM.Validate exposing
 import Dict exposing (Dict)
 import FVM exposing (Case(..), Error(..), Expression(..), Package, PackageErrors, Pattern(..), Type(..))
 import FVM.Package exposing (letName)
-import FVM.Type exposing (typeOf)
+import FVM.Type exposing (typeOf, typeOfP)
 import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
 import Result
 
@@ -295,71 +294,66 @@ expandCases pattern cases pkg =
 
 expandCase : Pattern -> Case -> Package -> Result Error (List Case)
 expandCase pattern case_ pkg =
-    andThen2
-        (\patternType casePattern ->
-            if patternType == casePattern then
-                case pattern of
-                    AnyP _ ->
-                        Ok []
+    if typeOfP pattern == typeOfP (caseToPattern case_) then
+        case pattern of
+            AnyP _ ->
+                Ok []
 
-                    NameP p _ ->
-                        expandCase p case_ pkg
+            NameP p _ ->
+                expandCase p case_ pkg
 
-                    TypeP _ ->
-                        Ok [ case_ ]
-
-                    IntP _ ->
-                        Ok [ case_ ]
-
-                    NumberP _ ->
-                        Ok [ case_ ]
-
-                    TupleP itemsP ->
-                        case case_ of
-                            AnyC (TupleT itemsT) ->
-                                expandCase pattern (TupleC (List.map AnyC itemsT)) pkg
-
-                            TupleC itemsC ->
-                                Result.map
-                                    (\choices -> List.map TupleC (combinations choices))
-                                    (andThenList (\( p, c ) -> expandCase p c pkg) (zip2 itemsP itemsC))
-
-                            _ ->
-                                Ok [ case_ ]
-
-                    RecordP _ ->
-                        Ok []
-
-                    ConstructorP (( typeName, typeInputs ) as namedT) name inputsP ->
-                        case case_ of
-                            AnyC _ ->
-                                Result.andThen
-                                    (\ctors ->
-                                        Dict.map
-                                            (\nameC inputsT -> ConstructorC ( typeName, typeInputs ) nameC (List.map AnyC inputsT))
-                                            ctors
-                                            |> Dict.values
-                                            |> (\cases -> expandCases pattern cases pkg)
-                                    )
-                                    (getTypeDefinition namedT pkg)
-
-                            ConstructorC namedTC nameC inputsC ->
-                                if namedT == namedTC && name == nameC then
-                                    Result.map
-                                        (\choices -> List.map (ConstructorC namedT nameC) (combinations choices))
-                                        (andThenList (\( p, c ) -> expandCase p c pkg) (zip2 inputsP inputsC))
-
-                                else
-                                    Ok [ case_ ]
-
-                            _ ->
-                                Ok [ case_ ]
-
-            else
+            TypeP _ ->
                 Ok [ case_ ]
-        )
-        (typeOfP pattern pkg)
-        (typeOfP (caseToPattern case_) pkg)
+
+            IntP _ ->
+                Ok [ case_ ]
+
+            NumberP _ ->
+                Ok [ case_ ]
+
+            TupleP itemsP ->
+                case case_ of
+                    AnyC (TupleT itemsT) ->
+                        expandCase pattern (TupleC (List.map AnyC itemsT)) pkg
+
+                    TupleC itemsC ->
+                        Result.map
+                            (\choices -> List.map TupleC (combinations choices))
+                            (andThenList (\( p, c ) -> expandCase p c pkg) (zip2 itemsP itemsC))
+
+                    _ ->
+                        Ok [ case_ ]
+
+            RecordP _ ->
+                Ok []
+
+            ConstructorP (( typeName, typeInputs ) as namedT) name inputsP ->
+                case case_ of
+                    AnyC _ ->
+                        Result.andThen
+                            (\ctors ->
+                                Dict.map
+                                    (\nameC inputsT -> ConstructorC ( typeName, typeInputs ) nameC (List.map AnyC inputsT))
+                                    ctors
+                                    |> Dict.values
+                                    |> (\cases -> expandCases pattern cases pkg)
+                            )
+                            (getTypeDefinition namedT pkg)
+
+                    ConstructorC namedTC nameC inputsC ->
+                        if namedT == namedTC && name == nameC then
+                            Result.map
+                                (\choices -> List.map (ConstructorC namedT nameC) (combinations choices))
+                                (andThenList (\( p, c ) -> expandCase p c pkg) (zip2 inputsP inputsC))
+
+                        else
+                            Ok [ case_ ]
+
+                    _ ->
+                        Ok [ case_ ]
+
+    else
+        Ok [ case_ ]
 
 
 caseToPattern : Case -> Pattern
@@ -430,56 +424,16 @@ checkP pkg pattern =
                 (\ctors ->
                     case Dict.get name ctors of
                         Just inputsT ->
-                            Result.andThen
-                                (\gotT ->
-                                    if gotT == inputsT then
-                                        Ok pattern
+                            if List.map typeOfP inputsP == inputsT then
+                                Ok pattern
 
-                                    else
-                                        Err (ConstructorInputsMismatch namedT name { got = gotT, expected = inputsT })
-                                )
-                                (andThenList (\p -> typeOfP p pkg) inputsP)
+                            else
+                                Err (ConstructorInputsMismatch namedT name { got = List.map typeOfP inputsP, expected = inputsT })
 
                         Nothing ->
                             Err (ConstructorNotFound namedT name)
                 )
                 (getTypeDefinition namedT pkg)
-
-
-
--- TYPE OF PATTERN
-
-
-typeOfP : Pattern -> Package -> Result Error Type
-typeOfP pattern pkg =
-    Result.andThen
-        (\_ ->
-            case pattern of
-                AnyP t ->
-                    Ok t
-
-                NameP p _ ->
-                    typeOfP p pkg
-
-                TypeP _ ->
-                    Ok TypeT
-
-                IntP _ ->
-                    Ok IntT
-
-                NumberP _ ->
-                    Ok NumberT
-
-                TupleP itemsP ->
-                    Result.map TupleT (andThenList (\p -> typeOfP p pkg) itemsP)
-
-                RecordP itemsT ->
-                    Ok (RecordT itemsT)
-
-                ConstructorP ( typeName, typeInputs ) _ _ ->
-                    Ok (NameT typeName typeInputs)
-        )
-        (checkP pkg pattern )
 
 
 
@@ -489,8 +443,8 @@ typeOfP pattern pkg =
 typecheckP : Pattern -> Type -> Package -> Result Error Pattern
 typecheckP pattern typ pkg =
     andThen2
-        (\patternType _ ->
-            if patternType == typ then
+        (\_ _ ->
+            if typeOfP pattern == typ then
                 Ok pattern
 
             else
@@ -518,7 +472,7 @@ typecheckP pattern typ pkg =
                     _ ->
                         Err (PatternMismatch pattern typ)
         )
-        (typeOfP pattern pkg)
+        (checkP pkg pattern)
         (checkT pkg typ)
 
 
@@ -554,36 +508,32 @@ getName name pkg =
 
 withPattern : Pattern -> Package -> Result Error Package
 withPattern pattern pkg =
-    Result.andThen
-        (\typ ->
-            case pattern of
-                AnyP _ ->
-                    Ok pkg
+    case pattern of
+        AnyP _ ->
+            Ok pkg
 
-                NameP p name ->
-                    Result.map (letName name (Load name typ))
-                        (withPattern p pkg)
+        NameP p name ->
+            Result.map (letName name (Load name (typeOfP pattern)))
+                (withPattern p pkg)
 
-                TypeP _ ->
-                    Ok pkg
+        TypeP _ ->
+            Ok pkg
 
-                IntP _ ->
-                    Ok pkg
+        IntP _ ->
+            Ok pkg
 
-                NumberP _ ->
-                    Ok pkg
+        NumberP _ ->
+            Ok pkg
 
-                TupleP itemsP ->
-                    List.foldl (\p -> Result.andThen (withPattern p))
-                        (Ok pkg)
-                        itemsP
+        TupleP itemsP ->
+            List.foldl (\p -> Result.andThen (withPattern p))
+                (Ok pkg)
+                itemsP
 
-                RecordP _ ->
-                    Ok pkg
+        RecordP _ ->
+            Ok pkg
 
-                ConstructorP _ _ inputsP ->
-                    List.foldl (\p -> Result.andThen (withPattern p))
-                        (Ok pkg)
-                        inputsP
-        )
-        (typeOfP pattern pkg)
+        ConstructorP _ _ inputsP ->
+            List.foldl (\p -> Result.andThen (withPattern p))
+                (Ok pkg)
+                inputsP

@@ -1,7 +1,10 @@
-module FVM.Type exposing (typeOf)
+module FVM.Type exposing
+    ( typeOf
+    , typeOfP
+    )
 
 import Dict
-import FVM exposing (Error(..), Expression(..), Type(..))
+import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..))
 
 
 
@@ -48,3 +51,35 @@ typeOf expression =
 
         CaseOf ( _, outputT ) _ ->
             outputT
+
+
+
+-- TYPE OF PATTERN
+
+
+typeOfP : Pattern -> Type
+typeOfP pattern =
+    case pattern of
+        AnyP typ ->
+            typ
+
+        NameP p _ ->
+            typeOfP p
+
+        TypeP _ ->
+            TypeT
+
+        IntP _ ->
+            IntT
+
+        NumberP _ ->
+            NumberT
+
+        TupleP itemsP ->
+            TupleT (List.map typeOfP itemsP)
+
+        RecordP itemsT ->
+            RecordT itemsT
+
+        ConstructorP ( typeName, typeInputs ) _ _ ->
+            NameT typeName typeInputs
