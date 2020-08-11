@@ -8,6 +8,15 @@ Reference:
 
 ## TO DO
 
+* Make typeOf not depend on Package, not return a Result, and move it to its own module
+* Change the order of Package input in functions so it's easier to map to collections
+* Get rid of `Input` expression, use `Load name typ` instead
+* Replace `Function` module with `Expression` module
+  * Replace `mapFunctionType` with `withFunctionType`
+  * Replace `mapFunction` with `withFunction`
+  * Create `withVariables` for `Let`
+  * Create `withStatements`
+  * Maybe an `asFunction` that gives multiple inputs and statements with a return
 * Type aliases
 * Builtin functions
 * Code generation (start with Python?)
