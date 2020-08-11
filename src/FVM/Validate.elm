@@ -2,7 +2,6 @@ module FVM.Validate exposing
     ( check
     , checkP
     , checkT
-    , typecheck
     , typecheckP
     , validate
     )
@@ -230,16 +229,22 @@ checkCall expression generics pkg =
                     case typeOf function of
                         LambdaT (GenericT name) _ ->
                             case Dict.get name gs of
-                                Just t ->
-                                    Result.map (\_ -> gs)
-                                        (typecheck input t pkg)
+                                Just typ ->
+                                    if typeOf input == typ then
+                                        Ok gs
+
+                                    else
+                                        Err (TypeMismatch input typ)
 
                                 Nothing ->
                                     Ok (Dict.insert name (typeOf input) gs)
 
                         LambdaT inputT _ ->
-                            Result.map (\_ -> gs)
-                                (typecheck input inputT pkg)
+                            if typeOf input == inputT then
+                                Ok gs
+
+                            else
+                                Err (TypeMismatch input inputT)
 
                         _ ->
                             Err (CallNonFunction function input)
@@ -261,9 +266,12 @@ checkCase :
 checkCase input outputT pkg ( pattern, output ) seenAndMissingResult =
     andThen3
         (\( seen, missingCases ) _ patternPkg ->
-            andThen2
-                (\_ _ ->
-                    if isCaseCovered pattern seen then
+            Result.andThen
+                (\_ ->
+                    if typeOf output /= outputT then
+                        Err (TypeMismatch output outputT)
+
+                    else if isCaseCovered pattern seen then
                         Err (CaseAlreadyCovered ( input, outputT ) ( pattern, output ))
 
                     else
@@ -272,7 +280,6 @@ checkCase input outputT pkg ( pattern, output ) seenAndMissingResult =
                             (expandCases pattern missingCases pkg)
                 )
                 (check patternPkg output)
-                (typecheck output outputT patternPkg)
         )
         seenAndMissingResult
         (typecheckP pattern (typeOf input) pkg)
@@ -375,24 +382,6 @@ caseToPattern case_ =
 
         ConstructorC namedT name inputsC ->
             ConstructorP namedT name (List.map caseToPattern inputsC)
-
-
-
--- TYPECHECK EXPRESSION
-
-
-typecheck : Expression -> Type -> Package -> Result Error Expression
-typecheck expression typ pkg =
-    andThen2
-        (\_ _ ->
-            if typeOf expression == typ then
-                Ok expression
-
-            else
-                Err (TypeMismatch expression typ)
-        )
-        (check pkg expression)
-        (checkT pkg typ)
 
 
 
