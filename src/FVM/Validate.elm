@@ -12,7 +12,7 @@ import Dict exposing (Dict)
 import FVM exposing (Case(..), Error(..), Expression(..), Package, PackageErrors, Pattern(..), Type(..))
 import FVM.Package exposing (letName)
 import FVM.Type exposing (typeOf)
-import FVM.Util exposing (andThen2, andThen3, andThen4, andThenDict, andThenList, combinations, zip2)
+import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
 import Result
 
 
@@ -55,9 +55,7 @@ validateTypes pkg =
 
 validateNames : Package -> Dict String Error
 validateNames pkg =
-    Dict.map
-        (\_ value -> check value pkg)
-        pkg.names
+    Dict.map (\_ -> check pkg) pkg.names
         |> collectErrors
 
 
@@ -125,8 +123,8 @@ checkT typ pkg =
 -- CHECK EXPRESSION
 
 
-check : Expression -> Package -> Result Error Expression
-check expression pkg =
+check : Package -> Expression -> Result Error Expression
+check pkg expression =
     case expression of
         Type typ ->
             Result.map (\_ -> expression)
@@ -140,11 +138,11 @@ check expression pkg =
 
         Tuple items ->
             Result.map (\_ -> expression)
-                (andThenList (\x -> check x pkg) items)
+                (andThenList (check pkg) items)
 
         Record items ->
             Result.map (\_ -> expression)
-                (andThenDict (\_ x -> check x pkg) items)
+                (andThenDict (\_ -> check pkg) items)
 
         Constructor namedT name inputs ->
             Result.andThen
@@ -169,12 +167,10 @@ check expression pkg =
 
                 Nothing ->
                     Result.map2 (\_ _ -> expression)
-                        (check value pkg)
-                        (check output (letName name value pkg))
+                        (check pkg value)
+                        (check (letName name value pkg) output)
 
         Load name typ ->
-            -- TODO: if loaded == expression, succeed
-            -- TODO: typecheck
             Result.map (\_ -> expression)
                 (getName name pkg)
 
@@ -186,7 +182,7 @@ check expression pkg =
                 Nothing ->
                     Result.map2 (\_ _ -> expression)
                         (checkT inputT pkg)
-                        (check output (letName name (Load name inputT) pkg))
+                        (check (letName name (Load name inputT) pkg) output)
 
         Call _ _ ->
             Result.map (\_ -> expression)
@@ -217,7 +213,7 @@ check expression pkg =
                                             Err (CasesMissing ( input, outputT ) missing)
                             )
                 )
-                (check input pkg)
+                (check pkg input)
                 (checkT outputT pkg)
 
 
@@ -244,7 +240,7 @@ checkCall expression generics pkg =
                         _ ->
                             Err (CallNonFunction function input)
                 )
-                (check function pkg)
+                (check pkg function)
                 (checkCall function generics pkg)
 
         _ ->
@@ -271,7 +267,7 @@ checkCase input outputT pkg ( pattern, output ) seenAndMissingResult =
                             (\cases -> ( pattern :: seen, cases ))
                             (expandCases pattern missingCases pkg)
                 )
-                (check output patternPkg)
+                (check patternPkg output)
                 (typecheck output outputT patternPkg)
         )
         seenAndMissingResult
@@ -396,7 +392,7 @@ typecheck expression typ pkg =
             else
                 Err (TypeMismatch expression typ)
         )
-        (check expression pkg)
+        (check pkg expression)
         (checkT typ pkg)
 
 
