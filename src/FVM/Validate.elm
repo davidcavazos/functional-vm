@@ -167,8 +167,16 @@ check pkg expression =
                         (check (letName name value pkg) output)
 
         Load name typ ->
-            Result.map (\_ -> expression)
+            andThen2
+                (\value _ ->
+                    if typeOf value == typ then
+                        Ok expression
+
+                    else
+                        Err (TypeMismatch value typ)
+                )
                 (getName name pkg)
+                (checkT pkg typ)
 
         Lambda ( name, inputT ) output ->
             case Dict.get name pkg.names of

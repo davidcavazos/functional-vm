@@ -146,14 +146,27 @@ suite =
 
         -- Load
         , describe "Load"
-            [ test "x -- NameNotFound -- getName" <|
+            [ test "x : Int -- NameNotFound -- getName" <|
                 \_ ->
                     check FVM.Package.new (Load "x" IntT)
                         |> Expect.equal (Err (NameNotFound "x"))
 
-            -- TODO: typecheck
             --
-            , test "let x = 1; x -- ok" <|
+            , test "let x = 1; x : X -- NameNotFound -- checkT" <|
+                \_ ->
+                    check FVM.Package.new
+                        (Let ( "x", Int 1 ) (Load "x" (NameT "X" [])))
+                        |> Expect.equal (Err (TypeNotFound "X"))
+
+            --
+            , test "let x = 1; x : Number -- TypeMismatch -- type check" <|
+                \_ ->
+                    check FVM.Package.new
+                        (Let ( "x", Int 1 ) (Load "x" NumberT))
+                        |> Expect.equal (Err (TypeMismatch (Int 1) NumberT))
+
+            --
+            , test "let x = 1; x : Int -- ok" <|
                 \_ ->
                     check FVM.Package.new (Let ( "x", Int 1 ) (Load "x" IntT))
                         |> Expect.equal (Ok (Let ( "x", Int 1 ) (Load "x" IntT)))
