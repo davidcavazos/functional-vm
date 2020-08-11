@@ -133,22 +133,6 @@ suite =
                         |> Expect.equal (Ok (Constructor ( "T", [] ) "A" [ Int 1 ]))
             ]
 
-        -- Input
-        , describe "Input"
-            [ test "input X -- TypeNotFound -- checkT" <|
-                \_ ->
-                    FVM.Package.new
-                        |> check (Input (NameT "X" []))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "input Int -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> check (Input IntT)
-                        |> Expect.equal (Ok (Input IntT))
-            ]
-
         -- Let
         , describe "Let"
             [ test "let x = X; 1 -- TypeNotFound -- check value" <|
@@ -184,15 +168,16 @@ suite =
             [ test "x -- NameNotFound -- getName" <|
                 \_ ->
                     FVM.Package.new
-                        |> check (Load "x")
+                        |> check (Load "x" IntT)
                         |> Expect.equal (Err (NameNotFound "x"))
 
+            -- TODO: typecheck
             --
             , test "let x = 1; x -- ok" <|
                 \_ ->
                     FVM.Package.new
-                        |> check (Let ( "x", Int 1 ) (Load "x"))
-                        |> Expect.equal (Ok (Let ( "x", Int 1 ) (Load "x")))
+                        |> check (Let ( "x", Int 1 ) (Load "x" IntT))
+                        |> Expect.equal (Ok (Let ( "x", Int 1 ) (Load "x" IntT)))
             ]
 
         -- Lambda
@@ -207,15 +192,15 @@ suite =
             , test "(x : Int) -> y -- NameNotFound -- check on output" <|
                 \_ ->
                     FVM.Package.new
-                        |> check (Lambda ( "x", IntT ) (Load "y"))
+                        |> check (Lambda ( "x", IntT ) (Load "y" IntT))
                         |> Expect.equal (Err (NameNotFound "y"))
 
             --
             , test "(x : Int) -> x -- ok" <|
                 \_ ->
                     FVM.Package.new
-                        |> check (Lambda ( "x", IntT ) (Load "x"))
-                        |> Expect.equal (Ok (Lambda ( "x", IntT ) (Load "x")))
+                        |> check (Lambda ( "x", IntT ) (Load "x" IntT))
+                        |> Expect.equal (Ok (Lambda ( "x", IntT ) (Load "x" IntT)))
             ]
 
         -- Call
@@ -223,7 +208,7 @@ suite =
             [ test "x 1 -- NameNotFound -- typeOf function" <|
                 \_ ->
                     FVM.Package.new
-                        |> check (Call (Load "x") (Int 1))
+                        |> check (Call (Load "x" IntT) (Int 1))
                         |> Expect.equal (Err (NameNotFound "x"))
 
             --
@@ -234,37 +219,44 @@ suite =
                         |> Expect.equal (Err (CallNonFunction (Int 1) (Int 2)))
 
             --
-            , test "(Int -> Number) 1.1 -- TypeMismatch -- typecheck on non-generic input" <|
+            , test "((x : Int) -> 0.0) 1.1 -- TypeMismatch -- typecheck on input" <|
                 \_ ->
                     FVM.Package.new
-                        |> check (Call (Input (LambdaT IntT NumberT)) (Number 1.1))
+                        |> check (Call (Lambda ( "x", IntT ) (Number 0.0)) (Number 1.1))
                         |> Expect.equal (Err (TypeMismatch (Number 1.1) IntT))
 
             --
-            , test "(Int -> Number) 1 -- ok" <|
+            , test "((x : Int) -> 0.0) 1 -- ok" <|
                 \_ ->
                     FVM.Package.new
-                        |> check (Call (Input (LambdaT IntT NumberT)) (Int 1))
-                        |> Expect.equal (Ok (Call (Input (LambdaT IntT NumberT)) (Int 1)))
+                        |> check (Call (Lambda ( "x", IntT ) (Number 0.0)) (Int 1))
+                        |> Expect.equal (Ok (Call (Lambda ( "x", IntT ) (Number 0.0)) (Int 1)))
+            ]
 
-            --
-            , test "(a -> Number) 1 -- ok" <|
+        -- Call generics
+        , describe "Call generics"
+            [ test "((x : a) -> 0.0) 1 -- ok" <|
                 \_ ->
                     FVM.Package.new
                         |> check
-                            (Call (Input (LambdaT (GenericT "a") NumberT))
+                            (Call (Lambda ( "x", GenericT "a" ) (Number 0.0))
                                 (Int 1)
                             )
-                        |> Expect.equal (Ok (Call (Input (LambdaT (GenericT "a") NumberT)) (Int 1)))
+                        |> Expect.equal (Ok (Call (Lambda ( "x", GenericT "a" ) (Number 0.0)) (Int 1)))
 
             --
-            , test "(a -> a -> a -> Number) 1 2 3.3 -- TypeMismatch typecheck on generic input" <|
+            , test "((x : a) -> (y : a) -> (z : a) -> 0.0); f 1 2 3.3 -- TypeMismatch typecheck on generic input" <|
                 \_ ->
                     FVM.Package.new
                         |> check
                             (Call
                                 (Call
-                                    (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT))))
+                                    (Call
+                                        (Lambda ( "x", GenericT "a" )
+                                            (Lambda ( "y", GenericT "a" )
+                                                (Lambda ( "z", GenericT "a" ) (Number 0.0))
+                                            )
+                                        )
                                         (Int 1)
                                     )
                                     (Int 2)
@@ -274,20 +266,25 @@ suite =
                         |> Expect.equal (Err (TypeMismatch (Number 3.3) IntT))
 
             --
-            , test "(a -> a -> a -> Number) 1 2 3 -- ok" <|
+            , test "((x: a) -> (y : a) -> (z : a) -> 0.0); f 1 2 3 -- ok" <|
                 \_ ->
                     FVM.Package.new
                         |> check
                             (Call
                                 (Call
-                                    (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT))))
+                                    (Call
+                                        (Lambda ( "x", GenericT "a" )
+                                            (Lambda ( "y", GenericT "a" )
+                                                (Lambda ( "z", GenericT "a" ) (Number 0.0))
+                                            )
+                                        )
                                         (Int 1)
                                     )
                                     (Int 2)
                                 )
                                 (Int 3)
                             )
-                        |> Expect.equal (Ok (Call (Call (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT)))) (Int 1)) (Int 2)) (Int 3)))
+                        |> Expect.equal (Ok (Call (Call (Call (Lambda ( "x", GenericT "a" ) (Lambda ( "y", GenericT "a" ) (Lambda ( "z", GenericT "a" ) (Number 0)))) (Int 1)) (Int 2)) (Int 3)))
             ]
 
         -- CaseOf
@@ -321,9 +318,9 @@ suite =
                     FVM.Package.new
                         |> check
                             (CaseOf ( Int 1, IntT )
-                                [ ( NameP (AnyP IntT) "x", Load "x" ) ]
+                                [ ( NameP (AnyP IntT) "x", Load "x" IntT ) ]
                             )
-                        |> Expect.equal (Ok (CaseOf ( Int 1, IntT ) [ ( NameP (AnyP IntT) "x", Load "x" ) ]))
+                        |> Expect.equal (Ok (CaseOf ( Int 1, IntT ) [ ( NameP (AnyP IntT) "x", Load "x" IntT ) ]))
 
             --
             , test "case 1 -> Number of 1 -> 2 -- TypeMismatch -- typecheck on output" <|
@@ -346,12 +343,12 @@ suite =
                         |> Expect.equal (Err (CasesMissing ( Int 1, NumberT ) [ AnyC IntT ]))
 
             --
-            , test "case 1 -> Int of _ -> x -- NameNotFound -- checkCase" <|
+            , test "case 1 -> Int of _ -> x -- NameNotFound -- checkCase output" <|
                 \_ ->
                     FVM.Package.new
                         |> check
                             (CaseOf ( Int 1, IntT )
-                                [ ( AnyP IntT, Load "x" ) ]
+                                [ ( AnyP IntT, Load "x" IntT ) ]
                             )
                         |> Expect.equal (Err (NameNotFound "x"))
 
@@ -361,9 +358,9 @@ suite =
                     FVM.Package.new
                         |> check
                             (CaseOf ( Int 1, IntT )
-                                [ ( NameP (AnyP IntT) "x", Load "x" ) ]
+                                [ ( NameP (AnyP IntT) "x", Load "x" IntT ) ]
                             )
-                        |> Expect.equal (Ok (CaseOf ( Int 1, IntT ) [ ( NameP (AnyP IntT) "x", Load "x" ) ]))
+                        |> Expect.equal (Ok (CaseOf ( Int 1, IntT ) [ ( NameP (AnyP IntT) "x", Load "x" IntT ) ]))
 
             --
             , test "case 1 -> Number of 1 -> 1.1; 1 -> 2.2 -- CaseAlreadyCovered -- isCaseCovered" <|
@@ -417,9 +414,9 @@ suite =
                     FVM.Package.new
                         |> check
                             (CaseOf ( Tuple [ Int 1, Number 2.2 ], NumberT )
-                                [ ( TupleP [ NameP (AnyP IntT) "x", NameP (AnyP NumberT) "y" ], Load "y" ) ]
+                                [ ( TupleP [ NameP (AnyP IntT) "x", NameP (AnyP NumberT) "y" ], Load "y" NumberT ) ]
                             )
-                        |> Expect.equal (Ok (CaseOf ( Tuple [ Int 1, Number 2.2 ], NumberT ) [ ( TupleP [ NameP (AnyP IntT) "x", NameP (AnyP NumberT) "y" ], Load "y" ) ]))
+                        |> Expect.equal (Ok (CaseOf ( Tuple [ Int 1, Number 2.2 ], NumberT ) [ ( TupleP [ NameP (AnyP IntT) "x", NameP (AnyP NumberT) "y" ], Load "y" NumberT ) ]))
 
             -- CaseOf Record
             , test "case {} -> Int of -- MissingCases -- on records" <|
@@ -516,9 +513,9 @@ suite =
                         |> check
                             (CaseOf ( Constructor ( "T", [] ) "A" [], IntT )
                                 [ ( ConstructorP ( "T", [] ) "A" [], Int 1 )
-                                , ( ConstructorP ( "T", [] ) "B" [ NameP (AnyP IntT) "x" ], Load "x" )
+                                , ( ConstructorP ( "T", [] ) "B" [ NameP (AnyP IntT) "x" ], Load "x" IntT )
                                 ]
                             )
-                        |> Expect.equal (Ok (CaseOf ( Constructor ( "T", [] ) "A" [], IntT ) [ ( ConstructorP ( "T", [] ) "A" [], Int 1 ), ( ConstructorP ( "T", [] ) "B" [ NameP (AnyP IntT) "x" ], Load "x" ) ]))
+                        |> Expect.equal (Ok (CaseOf ( Constructor ( "T", [] ) "A" [], IntT ) [ ( ConstructorP ( "T", [] ) "A" [], Int 1 ), ( ConstructorP ( "T", [] ) "B" [ NameP (AnyP IntT) "x" ], Load "x" IntT ) ]))
             ]
         ]

@@ -46,9 +46,8 @@ type Expression
     | Tuple (List Expression) -- (42, 3.14)
     | Record (Dict String Expression) -- (x = 1, y = 3.14)
     | Constructor ( String, List Expression ) String (List Expression) -- (Maybe a).Just 42
-    | Input Type -- input for Lambda
     | Let ( String, Expression ) Expression -- let x = 1; x + 1
-    | Load String -- x
+    | Load String Type -- x : Int
     | Lambda ( String, Type ) Expression -- (x : Int) -> x
     | Call Expression Expression -- (f : Int -> Int) 1
     | CaseOf ( Expression, Type ) (List ( Pattern, Expression )) -- case x -> Bool of 1 -> True; _ -> False

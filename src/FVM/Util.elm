@@ -1,6 +1,7 @@
 module FVM.Util exposing
     ( andThen2
     , andThen3
+    , andThen4
     , andThenDict
     , andThenList
     , combinations
@@ -28,6 +29,17 @@ andThen3 :
     -> Result error d
 andThen3 f ra rb rc =
     Result.andThen (\a -> andThen2 (\b c -> f a b c) rb rc) ra
+
+
+andThen4 :
+    (a -> b -> c -> d -> Result error e)
+    -> Result error a
+    -> Result error b
+    -> Result error c
+    -> Result error d
+    -> Result error e
+andThen4 f ra rb rc rd =
+    Result.andThen (\a -> andThen3 (\b c d -> f a b c d) rb rc rd) ra
 
 
 andThenList : (a -> Result error b) -> List a -> Result error (List b)

@@ -119,7 +119,7 @@ suite =
                         |> Expect.equal
                             (Ok
                                 { types = Dict.singleton "T" ( [], Dict.singleton "A" [ IntT ] )
-                                , names = Dict.singleton "A" (Lambda ( "x", IntT ) (Constructor ( "T", [] ) "A" [ Load "x" ]))
+                                , names = Dict.singleton "A" (Lambda ( "x", IntT ) (Constructor ( "T", [] ) "A" [ Load "x" IntT ]))
                                 }
                             )
             ]

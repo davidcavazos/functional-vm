@@ -130,7 +130,7 @@ suite =
         , describe "Load"
             [ test "x" <|
                 \_ ->
-                    pyExpr (Load "x")
+                    pyExpr (Load "x" IntT)
                         |> Expect.equal "x"
             ]
 

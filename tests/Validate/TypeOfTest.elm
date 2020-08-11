@@ -4,265 +4,129 @@ import Dict
 import Expect
 import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..))
 import FVM.Package exposing (letType)
-import FVM.Validate exposing (typeOf)
+import FVM.Type exposing (typeOf)
 import Test exposing (Test, describe, test)
 
 
 suite : Test
 suite =
     describe "typeOf"
-        -- Validation
-        [ describe "validation"
-            [ test "X -- TypeNotFound -- check expression" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Type (NameT "X" []))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-            ]
-
         -- Type
-        , describe "Type"
-            [ test "Int -- ok" <|
+        [ describe "Type"
+            [ test "Int" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Type IntT)
-                        |> Expect.equal (Ok TypeT)
+                    typeOf (Type IntT)
+                        |> Expect.equal TypeT
+
+            --
+            , test "T" <|
+                \_ ->
+                    typeOf (Type (NameT "T" []))
+                        |> Expect.equal TypeT
             ]
 
         -- Int
         , describe "Int"
-            [ test "1 -- ok" <|
+            [ test "1" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Int 1)
-                        |> Expect.equal (Ok IntT)
+                    typeOf (Int 1)
+                        |> Expect.equal IntT
             ]
 
         -- Number
         , describe "Number"
-            [ test "1.1 -- ok" <|
+            [ test "1.1" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Number 1.1)
-                        |> Expect.equal (Ok NumberT)
+                    typeOf (Number 1.1)
+                        |> Expect.equal NumberT
             ]
 
         -- Tuple
         , describe "Tuple"
-            [ test "() -- ok" <|
+            [ test "()" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Tuple [])
-                        |> Expect.equal (Ok (TupleT []))
+                    typeOf (Tuple [])
+                        |> Expect.equal (TupleT [])
 
             --
-            , test "(X) -- TypeNotFound -- typeOf on List" <|
+            , test "(1, 2.2)" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Tuple [ Type (NameT "X" []) ])
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "(1, 2) -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Tuple [ Int 1, Int 2 ])
-                        |> Expect.equal (Ok (TupleT [ IntT, IntT ]))
+                    typeOf (Tuple [ Int 1, Number 2.2 ])
+                        |> Expect.equal (TupleT [ IntT, NumberT ])
             ]
 
         -- Record
         , describe "Record"
-            [ test "() -- ok" <|
+            [ test "{}" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Record Dict.empty)
-                        |> Expect.equal (Ok (RecordT Dict.empty))
+                    typeOf (Record Dict.empty)
+                        |> Expect.equal (RecordT Dict.empty)
 
             --
-            , test "(a = X) -- TypeNotFound -- typeOf on Dict" <|
+            , test "(a = 1, b = 1.1)" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Record (Dict.singleton "a" (Type (NameT "X" []))))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "(a = 1, b = 1.1) -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Record (Dict.fromList [ ( "a", Int 1 ), ( "b", Number 1.1 ) ]))
-                        |> Expect.equal (Ok (RecordT (Dict.fromList [ ( "a", IntT ), ( "b", NumberT ) ])))
+                    typeOf (Record (Dict.fromList [ ( "a", Int 1 ), ( "b", Number 1.1 ) ]))
+                        |> Expect.equal (RecordT (Dict.fromList [ ( "a", IntT ), ( "b", NumberT ) ]))
             ]
 
         -- Constructor
         , describe "Constructor"
-            [ test "type T Int = A; (T 1).A -- ok" <|
+            [ test "(T 1).A" <|
                 \_ ->
-                    FVM.Package.new
-                        |> letType ( "T", [ IntT ] ) (Dict.singleton "A" ( [], [] ))
-                        |> typeOf (Constructor ( "T", [ Int 1 ] ) "A" [])
-                        |> Expect.equal (Ok (NameT "T" [ Int 1 ]))
-            ]
-
-        -- Input
-        , describe "Input"
-            [ test "Int -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Input IntT)
-                        |> Expect.equal (Ok IntT)
+                    typeOf (Constructor ( "T", [ Int 1 ] ) "A" [])
+                        |> Expect.equal (NameT "T" [ Int 1 ])
             ]
 
         -- Let
         , describe "Let"
-            [ test "let x = 1; 2 -- ok" <|
+            [ test "let x = 1; 2.2" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Let ( "x", Int 1 ) (Int 2))
-                        |> Expect.equal (Ok IntT)
+                    typeOf (Let ( "x", Int 1 ) (Number 2.2))
+                        |> Expect.equal NumberT
             ]
 
         -- Load
         , describe "Load"
-            [ test "x -- NameNotFound" <|
+            [ test "x" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Load "x")
-                        |> Expect.equal (Err (NameNotFound "x"))
-
-            --
-            , test "let x = 1; x-- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Let ( "x", Int 1 ) (Load "x"))
-                        |> Expect.equal (Ok IntT)
+                    typeOf (Load "x" IntT)
+                        |> Expect.equal IntT
             ]
 
         -- Lambda
         , describe "Lambda"
-            [ test "(x : X) -> 1.1 -- TypeNotFound on input type" <|
+            [ test "(x : Int) -> 1.1" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Lambda ( "x", NameT "X" [] ) (Int 1))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "(x : Int) -> y -- NameNotFound on output type" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Lambda ( "x", IntT ) (Load "y"))
-                        |> Expect.equal (Err (NameNotFound "y"))
-
-            --
-            , test "(x : Int) -> 1.1 -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Lambda ( "x", IntT ) (Number 1.1))
-                        |> Expect.equal (Ok (LambdaT IntT NumberT))
-
-            --
-            , test "(x : Int) -> x -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Lambda ( "x", IntT ) (Load "x"))
-                        |> Expect.equal (Ok (LambdaT IntT IntT))
+                    typeOf (Lambda ( "x", IntT ) (Number 1.1))
+                        |> Expect.equal (LambdaT IntT NumberT)
             ]
 
         -- Call
         , describe "Call"
-            [ test "1 2 -- CallNonFunction" <|
+            [ test "((x : Int) -> Type) 1" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Call (Int 1) (Int 2))
-                        |> Expect.equal (Err (CallNonFunction (Int 1) (Int 2)))
+                    typeOf (Call (Lambda ( "x", IntT ) (Type TypeT)) (Number 1.1))
+                        |> Expect.equal TypeT
 
             --
-            , test "(X -> Number) 1.1 -- TypeNotFound on input" <|
+            , test "(x : Int) -> (y: Number) -> Type) 1 2.2" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (Call (Input (LambdaT (NameT "X" []) NumberT)) (Number 1.1))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "(Int -> X) 1.1 -- TypeNotFound on output" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Call (Input (LambdaT IntT (NameT "X" []))) (Number 1.1))
-                        |> Expect.equal (Err (TypeNotFound "X"))
-
-            --
-            , test "(Int -> Number) 1.1 -- TypeMismatch on input" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Call (Input (LambdaT IntT NumberT)) (Number 1.1))
-                        |> Expect.equal (Err (TypeMismatch (Number 1.1) IntT))
-
-            --
-            , test "(Int -> Number) 1 -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf (Call (Input (LambdaT IntT NumberT)) (Int 1))
-                        |> Expect.equal (Ok NumberT)
-
-            --
-            , test "(Int -> Number -> Type) 1 1.1 -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf
+                    typeOf
+                        (Call
                             (Call
-                                (Call
-                                    (Input (LambdaT IntT (LambdaT NumberT TypeT)))
-                                    (Int 1)
-                                )
-                                (Number 1.1)
-                            )
-                        |> Expect.equal (Ok TypeT)
-
-            -- Call with generic types
-            , test "(a -> Number) 1 -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf
-                            (Call (Input (LambdaT (GenericT "a") NumberT))
+                                (Lambda ( "x", IntT ) (Lambda ( "y", NumberT ) (Type TypeT)))
                                 (Int 1)
                             )
-                        |> Expect.equal (Ok NumberT)
-
-            --
-            , test "(a -> a -> Number) 1 2.2 -- TypeMismatch" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf
-                            (Call
-                                (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT)))
-                                    (Int 1)
-                                )
-                                (Number 2.2)
-                            )
-                        |> Expect.equal (Err (TypeMismatch (Number 2.2) IntT))
-
-            --
-            , test "(a -> a -> a -> Number) 1 2 3 -- ok" <|
-                \_ ->
-                    FVM.Package.new
-                        |> typeOf
-                            (Call
-                                (Call
-                                    (Call (Input (LambdaT (GenericT "a") (LambdaT (GenericT "a") (LambdaT (GenericT "a") NumberT))))
-                                        (Int 1)
-                                    )
-                                    (Int 2)
-                                )
-                                (Int 3)
-                            )
-                        |> Expect.equal (Ok NumberT)
+                            (Number 2.2)
+                        )
+                        |> Expect.equal TypeT
             ]
 
         -- CaseOf
         , describe "CaseOf"
-            [ test "match 1 to Number of _ -> 1.1 -- ok" <|
+            [ test "match 1 to Number of _ -> 1.1" <|
                 \_ ->
-                    FVM.Package.new
-                        |> typeOf (CaseOf ( Int 1, NumberT ) [ ( AnyP IntT, Number 1.1 ) ])
-                        |> Expect.equal (Ok NumberT)
+                    typeOf (CaseOf ( Int 1, NumberT ) [ ( AnyP IntT, Number 1.1 ) ])
+                        |> Expect.equal NumberT
             ]
         ]

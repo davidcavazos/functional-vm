@@ -105,13 +105,10 @@ pyExpr expression =
         Constructor _ name inputs ->
             name ++ "(" ++ String.join ", " (List.map pyExpr inputs) ++ ")"
 
-        Input typ ->
-            Debug.todo "pyExpr"
-
         Let ( name, value ) output ->
             name ++ " = " ++ pyExpr value ++ "\n" ++ pyExpr output
 
-        Load name ->
+        Load name typ ->
             name
 
         Lambda ( name, value ) output ->

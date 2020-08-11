@@ -52,7 +52,7 @@ letTypeConstructor : String -> String -> ( List ( String, Type ), List Expressio
 letTypeConstructor typeName name ( namedInputTypes, typeInputs ) pkg =
     let
         ctorInputs =
-            List.map (\( n, _ ) -> Load n) namedInputTypes
+            List.map (\( n, t ) -> Load n t) namedInputTypes
 
         ctor =
             List.foldr Lambda
