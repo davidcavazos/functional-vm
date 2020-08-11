@@ -49,7 +49,7 @@ pyType typ =
             "Tuple[" ++ String.join ", " (List.map pyType itemsT) ++ "]"
 
         RecordT itemsT ->
-            "Record({"
+            "RecordType({"
                 ++ String.join ", "
                     (List.map
                         (\( n, t ) -> "'" ++ n ++ "': " ++ pyType t)
@@ -79,35 +79,40 @@ pyType typ =
 -- EXPRESSION
 
 
-pyExpr : Expression -> List String
+pyExpr : Expression -> String
 pyExpr expression =
     case expression of
         Type typ ->
-            Debug.todo "pyExpr"
+            pyType typ
 
         Int value ->
-            [ String.fromInt value ]
+            String.fromInt value
 
         Number value ->
-            Debug.todo "pyExpr"
+            String.fromFloat value
 
         Tuple items ->
-            Debug.todo "pyExpr"
+            "(" ++ String.join ", " (List.map pyExpr items) ++ ")"
 
         Record items ->
-            Debug.todo "pyExpr"
+            "Record("
+                ++ String.join ", "
+                    (List.map (\( n, x ) -> n ++ "=" ++ pyExpr x)
+                        (Dict.toList items)
+                    )
+                ++ ")"
 
-        Constructor ( typeName, typeInputs ) name inputs ->
-            Debug.todo "pyExpr"
+        Constructor _ name inputs ->
+            name ++ "(" ++ String.join ", " (List.map pyExpr inputs) ++ ")"
 
         Input typ ->
             Debug.todo "pyExpr"
 
         Let ( name, value ) output ->
-            Debug.todo "pyExpr"
+            name ++ " = " ++ pyExpr value ++ "\n" ++ pyExpr output
 
         Load name ->
-            Debug.todo "pyExpr"
+            name
 
         Lambda ( name, value ) output ->
             Debug.todo "pyExpr"
@@ -138,7 +143,8 @@ pyPackage pkg =
     -- NameT are classes
     -- RecordT must
     --      from typing import NamedTuple
-    --      Record = lambda fields: NamedTuple('Record', fields.items())
+    --      RecordType = lambda fields: NamedTuple('Record', fields.items())
+    --      Record = lambda fields: namedtuple('Record', fields.keys())(**fields)
     -- GenericT must
     --      from typing import TypeVar
     --      a = TypeVar('T')
