@@ -399,14 +399,14 @@ typecheck expression typ pkg =
 -- CHECK PATTERN
 
 
-checkP : Pattern -> Package -> Result Error Pattern
-checkP pattern pkg =
+checkP : Package -> Pattern -> Result Error Pattern
+checkP pkg pattern =
     case pattern of
         AnyP t ->
             Result.map (\_ -> pattern) (checkT pkg t)
 
         NameP p _ ->
-            Result.map (\_ -> pattern) (checkP p pkg)
+            Result.map (\_ -> pattern) (checkP pkg p)
 
         TypeP t ->
             Result.map (\_ -> pattern) (checkT pkg t)
@@ -419,7 +419,7 @@ checkP pattern pkg =
 
         TupleP itemsP ->
             Result.map (\_ -> pattern)
-                (andThenList (\p -> checkP p pkg) itemsP)
+                (andThenList (checkP pkg) itemsP)
 
         RecordP itemsT ->
             Result.map (\_ -> pattern)
@@ -479,7 +479,7 @@ typeOfP pattern pkg =
                 ConstructorP ( typeName, typeInputs ) _ _ ->
                     Ok (NameT typeName typeInputs)
         )
-        (checkP pattern pkg)
+        (checkP pkg pattern )
 
 
 
