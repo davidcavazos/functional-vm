@@ -3,7 +3,6 @@ module Validate.TypeOfTest exposing (suite)
 import Dict
 import Expect
 import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..))
-import FVM.Package exposing (letType)
 import FVM.Type exposing (typeOf)
 import Test exposing (Test, describe, test)
 
