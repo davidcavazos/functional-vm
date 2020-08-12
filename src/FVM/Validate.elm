@@ -2,7 +2,6 @@ module FVM.Validate exposing
     ( check
     , checkP
     , checkT
-    , typecheckP
     , validate
     )
 
@@ -10,7 +9,7 @@ import Dict exposing (Dict)
 import FVM exposing (Case(..), Error(..), Expression(..), Package, PackageErrors, Pattern(..), Type(..))
 import FVM.Package exposing (letName)
 import FVM.Type exposing (typeOf, typeOfP)
-import FVM.Util exposing (andThen2, andThen3, andThenDict, andThenList, combinations, zip2)
+import FVM.Util exposing (andThen2, andThenDict, andThenList, combinations, zip2)
 import Result
 
 
@@ -264,8 +263,8 @@ checkCase :
     -> Result Error ( List Pattern, List Case )
     -> Result Error ( List Pattern, List Case )
 checkCase input outputT pkg ( pattern, output ) seenAndMissingResult =
-    andThen3
-        (\( seen, missingCases ) _ patternPkg ->
+    andThen2
+        (\( seen, missingCases ) patternPkg ->
             Result.andThen
                 (\_ ->
                     if typeOf output /= outputT then
@@ -282,8 +281,89 @@ checkCase input outputT pkg ( pattern, output ) seenAndMissingResult =
                 (check patternPkg output)
         )
         seenAndMissingResult
-        (typecheckP pattern (typeOf input) pkg)
-        (withPattern pattern pkg)
+        (typecheckPattern pattern (typeOf input) pkg)
+
+
+typecheckPattern : Pattern -> Type -> Package -> Result Error Package
+typecheckPattern pattern typ pkg =
+    andThen2
+        (\_ _ ->
+            if typeOfP pattern == typ then
+                withPattern pattern pkg
+
+            else
+                case ( pattern, typ ) of
+                    ( RecordP itemsPT, RecordT itemsT ) ->
+                        Dict.foldl
+                            (\name pt ->
+                                Result.andThen
+                                    (\prevPkg ->
+                                        case Dict.get name itemsT of
+                                            Just t ->
+                                                if pt == t then
+                                                    Ok prevPkg
+
+                                                else
+                                                    Err (PatternMismatch pattern typ)
+
+                                            Nothing ->
+                                                Err (PatternMismatch pattern typ)
+                                    )
+                            )
+                            (withPattern pattern pkg)
+                            itemsPT
+
+                    _ ->
+                        Err (PatternMismatch pattern typ)
+        )
+        (checkP pkg pattern)
+        (checkT pkg typ)
+
+
+withPattern : Pattern -> Package -> Result Error Package
+withPattern pattern pkg =
+    case pattern of
+        AnyP _ ->
+            Ok pkg
+
+        NameP p name ->
+            Result.map (letName name (Load name (typeOfP pattern)))
+                (withPattern p pkg)
+
+        TypeP _ ->
+            Ok pkg
+
+        IntP _ ->
+            Ok pkg
+
+        NumberP _ ->
+            Ok pkg
+
+        TupleP itemsP ->
+            List.foldl (\p -> Result.andThen (withPattern p))
+                (Ok pkg)
+                itemsP
+
+        RecordP itemsT ->
+            Dict.foldl
+                (\n t ->
+                    Result.andThen
+                        (\prevPkg ->
+                            case Dict.get n prevPkg.names of
+                                Just existing ->
+                                    Err (NameAlreadyExists n { got = Load n t, existing = existing })
+
+                                Nothing ->
+                                    Ok (letName n (Load n t) prevPkg)
+                        )
+                )
+                (Ok pkg)
+                itemsT
+
+        ConstructorP _ _ inputsP ->
+            List.foldl (\p -> Result.andThen (withPattern p))
+                (Ok pkg)
+                inputsP
 
 
 isCaseCovered : Pattern -> List Pattern -> Bool
@@ -434,46 +514,6 @@ checkP pkg pattern =
 
 
 
--- TYPECHECK PATTERN
-
-
-typecheckP : Pattern -> Type -> Package -> Result Error Pattern
-typecheckP pattern typ pkg =
-    andThen2
-        (\_ _ ->
-            if typeOfP pattern == typ then
-                Ok pattern
-
-            else
-                case ( pattern, typ ) of
-                    ( RecordP itemsPT, RecordT itemsT ) ->
-                        Dict.foldl
-                            (\name pt ->
-                                Result.andThen
-                                    (\_ ->
-                                        case Dict.get name itemsT of
-                                            Just t ->
-                                                if pt == t then
-                                                    Ok pattern
-
-                                                else
-                                                    Err (PatternMismatch pattern typ)
-
-                                            Nothing ->
-                                                Err (PatternMismatch pattern typ)
-                                    )
-                            )
-                            (Ok pattern)
-                            itemsPT
-
-                    _ ->
-                        Err (PatternMismatch pattern typ)
-        )
-        (checkP pkg pattern)
-        (checkT pkg typ)
-
-
-
 ---=== MODULE ===---
 --
 -- GET TYPE DEFINITION
@@ -501,36 +541,3 @@ getName name pkg =
 
         Nothing ->
             Err (NameNotFound name)
-
-
-withPattern : Pattern -> Package -> Result Error Package
-withPattern pattern pkg =
-    case pattern of
-        AnyP _ ->
-            Ok pkg
-
-        NameP p name ->
-            Result.map (letName name (Load name (typeOfP pattern)))
-                (withPattern p pkg)
-
-        TypeP _ ->
-            Ok pkg
-
-        IntP _ ->
-            Ok pkg
-
-        NumberP _ ->
-            Ok pkg
-
-        TupleP itemsP ->
-            List.foldl (\p -> Result.andThen (withPattern p))
-                (Ok pkg)
-                itemsP
-
-        RecordP _ ->
-            Ok pkg
-
-        ConstructorP _ _ inputsP ->
-            List.foldl (\p -> Result.andThen (withPattern p))
-                (Ok pkg)
-                inputsP

@@ -21,6 +21,7 @@ Reference:
 * Builtin functions
 * Code generation (start with Python?)
 * Elm parser
+* Simplify pattern matching tests and validation
 
 ## Serialization
 

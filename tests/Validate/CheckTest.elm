@@ -3,7 +3,7 @@ module Validate.CheckTest exposing (suite)
 import Dict
 import Expect
 import FVM exposing (Case(..), Error(..), Expression(..), Pattern(..), Type(..))
-import FVM.Package exposing (letType)
+import FVM.Package exposing (letName, letType)
 import FVM.Validate exposing (check)
 import Test exposing (Test, describe, test)
 
@@ -421,13 +421,31 @@ suite =
                         |> Expect.equal (Ok (CaseOf ( Record (Dict.singleton "x" (Int 1)), IntT ) [ ( RecordP Dict.empty, Int 2 ) ]))
 
             --
-            , test "case {x = 1, y = 2} -> Int of {x : Int} -> 3 -- ok" <|
+            , test "let x = 1; case {x = 2} -> Int of {x : Int} -> 3 -- NameAlreadyExists" <|
+                \_ ->
+                    check (letName "x" (Int 1) FVM.Package.new)
+                        (CaseOf ( Record (Dict.singleton "x" (Int 2)), IntT )
+                            [ ( RecordP (Dict.singleton "x" IntT), Int 3 ) ]
+                        )
+                        |> Expect.equal (Err (NameAlreadyExists "x" { got = Load "x" IntT, existing = Int 1 }))
+
+            --
+            , test "case {x = 1, y = 2} -> Int of {x : Int} -> x -- ok" <|
                 \_ ->
                     check FVM.Package.new
                         (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), IntT )
-                            [ ( RecordP (Dict.singleton "x" IntT), Int 3 ) ]
+                            [ ( RecordP (Dict.singleton "x" IntT), Load "x" IntT ) ]
                         )
-                        |> Expect.equal (Ok (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), IntT ) [ ( RecordP (Dict.singleton "x" IntT), Int 3 ) ]))
+                        |> Expect.equal (Ok (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), IntT ) [ ( RecordP (Dict.singleton "x" IntT), Load "x" IntT ) ]))
+
+            --
+            , test "case {x = 1, y = 2} -> (Int, Int) of {x : Int, y : Int} -> (x, y) -- ok" <|
+                \_ ->
+                    check FVM.Package.new
+                        (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), TupleT [ IntT, IntT ] )
+                            [ ( RecordP (Dict.fromList [ ( "x", IntT ), ( "y", IntT ) ]), Tuple [ Load "x" IntT, Load "y" IntT ] ) ]
+                        )
+                        |> Expect.equal (Ok (CaseOf ( Record (Dict.fromList [ ( "x", Int 1 ), ( "y", Int 2 ) ]), TupleT [ IntT, IntT ] ) [ ( RecordP (Dict.fromList [ ( "x", IntT ), ( "y", IntT ) ]), Tuple [ Load "x" IntT, Load "y" IntT ] ) ]))
 
             -- CaseOf Constructor
             , test "type T = A; case T.A -> Number of A -> 1.1 -- ok" <|
