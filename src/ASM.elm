@@ -42,11 +42,12 @@ type Condition
 
 type Accessor
     = Self
+    | TupleItem Int
+    | RecordField String
+    | ConstructorInput Int
 
 
 
--- | TupleItem Int
--- | ConstructorInput String
 -- TYPE OF EXPRESSION
 
 
