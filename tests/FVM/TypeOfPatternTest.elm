@@ -1,26 +1,25 @@
-module Validate.TypeOfPTest exposing (suite)
+module FVM.TypeOfPatternTest exposing (suite)
 
 import Dict
 import Expect
-import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..))
-import FVM.Type exposing (typeOfP)
+import FVM exposing (Error(..), Expression(..), Pattern(..), Type(..), typeOfPattern)
 import Test exposing (Test, describe, test)
 
 
 suite : Test
 suite =
-    describe "typeOfP"
+    describe "typeOfPattern"
         -- AnyP
         [ describe "AnyP"
             [ test "_ : Int -- ok" <|
                 \_ ->
-                    typeOfP (AnyP IntT)
+                    typeOfPattern (AnyP IntT)
                         |> Expect.equal IntT
 
             --
             , test "_ : T -- ok" <|
                 \_ ->
-                    typeOfP (AnyP (NameT "T" []))
+                    typeOfPattern (AnyP (NameT "T" []))
                         |> Expect.equal (NameT "T" [])
             ]
 
@@ -28,7 +27,7 @@ suite =
         , describe "NameP"
             [ test "x : Int -- ok" <|
                 \_ ->
-                    typeOfP (NameP (AnyP IntT) "x")
+                    typeOfPattern (NameP (AnyP IntT) "x")
                         |> Expect.equal IntT
             ]
 
@@ -36,7 +35,7 @@ suite =
         , describe "TypeP"
             [ test "Int -- ok" <|
                 \_ ->
-                    typeOfP (TypeP IntT)
+                    typeOfPattern (TypeP IntT)
                         |> Expect.equal TypeT
             ]
 
@@ -44,7 +43,7 @@ suite =
         , describe "IntP"
             [ test "1 -- ok" <|
                 \_ ->
-                    typeOfP (IntP 1)
+                    typeOfPattern (IntP 1)
                         |> Expect.equal IntT
             ]
 
@@ -52,7 +51,7 @@ suite =
         , describe "NumberP"
             [ test "1.1 -- ok" <|
                 \_ ->
-                    typeOfP (NumberP 1.1)
+                    typeOfPattern (NumberP 1.1)
                         |> Expect.equal NumberT
             ]
 
@@ -60,13 +59,13 @@ suite =
         , describe "TupleP"
             [ test "() -- ok" <|
                 \_ ->
-                    typeOfP (TupleP [])
+                    typeOfPattern (TupleP [])
                         |> Expect.equal (TupleT [])
 
             --
             , test "(_ : Int) -- ok" <|
                 \_ ->
-                    typeOfP (TupleP [ AnyP IntT ])
+                    typeOfPattern (TupleP [ AnyP IntT ])
                         |> Expect.equal (TupleT [ IntT ])
             ]
 
@@ -74,13 +73,13 @@ suite =
         , describe "RecordP"
             [ test "{} -- ok" <|
                 \_ ->
-                    typeOfP (RecordP Dict.empty)
+                    typeOfPattern (RecordP Dict.empty)
                         |> Expect.equal (RecordT Dict.empty)
 
             --
             , test "{a : Int} -- ok" <|
                 \_ ->
-                    typeOfP (RecordP (Dict.singleton "a" IntT))
+                    typeOfPattern (RecordP (Dict.singleton "a" IntT))
                         |> Expect.equal (RecordT (Dict.singleton "a" IntT))
             ]
 
@@ -88,7 +87,7 @@ suite =
         , describe "ConstructorP"
             [ test "(T 1).A -- ok" <|
                 \_ ->
-                    typeOfP (ConstructorP ( "T", [ Int 1 ] ) "A" [])
+                    typeOfPattern (ConstructorP ( "T", [ Int 1 ] ) "A" [])
                         |> Expect.equal (NameT "T" [ Int 1 ])
             ]
         ]

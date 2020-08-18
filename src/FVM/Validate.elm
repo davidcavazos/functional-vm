@@ -6,9 +6,8 @@ module FVM.Validate exposing
     )
 
 import Dict exposing (Dict)
-import FVM exposing (Case(..), Error(..), Expression(..), Package, PackageErrors, Pattern(..), Type(..))
+import FVM exposing (Case(..), Error(..), Expression(..), Package, PackageErrors, Pattern(..), Type(..), typeOf, typeOfPattern)
 import FVM.Package exposing (letName)
-import FVM.Type exposing (typeOf, typeOfP)
 import FVM.Util exposing (andThen2, andThenDict, andThenList, combinations, zip2)
 import Result
 
@@ -288,7 +287,7 @@ typecheckPattern : Pattern -> Type -> Package -> Result Error Package
 typecheckPattern pattern typ pkg =
     andThen2
         (\_ _ ->
-            if typeOfP pattern == typ then
+            if typeOfPattern pattern == typ then
                 withPattern pattern pkg
 
             else
@@ -327,7 +326,7 @@ withPattern pattern pkg =
             Ok pkg
 
         NameP p name ->
-            Result.map (letName name (Load name (typeOfP pattern)))
+            Result.map (letName name (Load name (typeOfPattern pattern)))
                 (withPattern p pkg)
 
         TypeP _ ->
@@ -389,7 +388,7 @@ expandCases pattern cases pkg =
 
 expandCase : Pattern -> Case -> Package -> Result Error (List Case)
 expandCase pattern case_ pkg =
-    if typeOfP pattern == typeOfP (caseToPattern case_) then
+    if typeOfPattern pattern == typeOfPattern (caseToPattern case_) then
         case pattern of
             AnyP _ ->
                 Ok []
@@ -501,11 +500,11 @@ checkP pkg pattern =
                 (\ctors ->
                     case Dict.get name ctors of
                         Just inputsT ->
-                            if List.map typeOfP inputsP == inputsT then
+                            if List.map typeOfPattern inputsP == inputsT then
                                 Ok pattern
 
                             else
-                                Err (ConstructorInputsMismatch namedT name { got = List.map typeOfP inputsP, expected = inputsT })
+                                Err (ConstructorInputsMismatch namedT name { got = List.map typeOfPattern inputsP, expected = inputsT })
 
                         Nothing ->
                             Err (ConstructorNotFound namedT name)
