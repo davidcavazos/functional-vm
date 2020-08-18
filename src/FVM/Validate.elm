@@ -1,6 +1,6 @@
 module FVM.Validate exposing
     ( check
-    , checkP
+    , checkPattern
     , checkT
     , validate
     )
@@ -280,11 +280,11 @@ checkCase input outputT pkg ( pattern, output ) seenAndMissingResult =
                 (check patternPkg output)
         )
         seenAndMissingResult
-        (typecheckPattern pattern (typeOf input) pkg)
+        (typecheckPatternattern pattern (typeOf input) pkg)
 
 
-typecheckPattern : Pattern -> Type -> Package -> Result Error Package
-typecheckPattern pattern typ pkg =
+typecheckPatternattern : Pattern -> Type -> Package -> Result Error Package
+typecheckPatternattern pattern typ pkg =
     andThen2
         (\_ _ ->
             if typeOfPattern pattern == typ then
@@ -315,7 +315,7 @@ typecheckPattern pattern typ pkg =
                     _ ->
                         Err (PatternMismatch pattern typ)
         )
-        (checkP pkg pattern)
+        (checkPattern pkg pattern)
         (checkT pkg typ)
 
 
@@ -469,14 +469,14 @@ caseToPattern case_ =
 -- CHECK PATTERN
 
 
-checkP : Package -> Pattern -> Result Error Pattern
-checkP pkg pattern =
+checkPattern : Package -> Pattern -> Result Error Pattern
+checkPattern pkg pattern =
     case pattern of
         AnyP t ->
             Result.map (\_ -> pattern) (checkT pkg t)
 
         NameP p _ ->
-            Result.map (\_ -> pattern) (checkP pkg p)
+            Result.map (\_ -> pattern) (checkPattern pkg p)
 
         TypeP t ->
             Result.map (\_ -> pattern) (checkT pkg t)
@@ -489,7 +489,7 @@ checkP pkg pattern =
 
         TupleP itemsP ->
             Result.map (\_ -> pattern)
-                (andThenList (checkP pkg) itemsP)
+                (andThenList (checkPattern pkg) itemsP)
 
         RecordP itemsT ->
             Result.map (\_ -> pattern)
