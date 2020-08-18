@@ -1,16 +1,15 @@
 module FVM.Build.Python exposing
     ( pyExpr
     , pyType
-    , pyTypeDef
     )
 
+import ASM exposing (Accessor(..), Condition(..), Expr(..), Type(..), typeOf)
 import Dict exposing (Dict)
-import FVM exposing (Error, Expression(..), Package, PackageErrors, Type(..))
-import FVM.Function exposing (mapFunctionType)
+import List
 
 
 
--- TYPE
+-- PYTHON TYPE
 
 
 pyType : Type -> String
@@ -25,63 +24,37 @@ pyType typ =
         NumberT ->
             "Number"
 
-        NameT name inputs ->
-            let
-                inputTypes =
-                    List.filterMap
-                        (\x ->
-                            case x of
-                                Type t ->
-                                    Just (pyType t)
-
-                                _ ->
-                                    Nothing
-                        )
-                        inputs
-            in
-            if List.isEmpty inputTypes then
-                name
-
-            else
-                name ++ "[" ++ String.join ", " inputTypes ++ "]"
-
         TupleT itemsT ->
-            "Tuple[" ++ String.join ", " (List.map pyType itemsT) ++ "]"
+            case itemsT of
+                [ itemT ] ->
+                    "(" ++ pyType itemT ++ ",)"
 
-        RecordT itemsT ->
-            "RecordType({"
-                ++ String.join ", "
-                    (List.map
-                        (\( n, t ) -> "'" ++ n ++ "': " ++ pyType t)
-                        (Dict.toList itemsT)
-                    )
-                ++ "})"
+                _ ->
+                    "(" ++ String.join "," (List.map pyType itemsT) ++ ")"
 
-        LambdaT _ _ ->
-            mapFunctionType
-                (\inputsT outputT ->
-                    "Callable[["
-                        ++ String.join ", " (List.map pyType inputsT)
-                        ++ "], "
-                        ++ pyType outputT
-                        ++ "]"
-                )
-                typ
+        RecordT fieldsT ->
+            -- "Record("
+            --     ++ String.join ","
+            --         (List.map (\( n, t ) -> n ++ "=" ++ pyType t)
+            --             (Dict.toList itemsT)
+            --         )
+            --     ++ ")"
+            Debug.todo "RecordT"
 
-        GenericT name ->
-            name
+        NameT name inputs ->
+            Debug.todo "NameT"
 
-        UnionT types ->
-            "Union[" ++ String.join ", " (List.map pyType types) ++ "]"
+        FunctionT inputsT outputT ->
+            Debug.todo "FunctionT"
 
 
 
--- EXPRESSION
+-- PYTHON EXPRESSION
 
 
-pyExpr : Expression -> String
-pyExpr expression =
-    case expression of
+pyExpr : Expr -> String
+pyExpr expr =
+    case expr of
         Type typ ->
             pyType typ
 
@@ -90,59 +63,148 @@ pyExpr expression =
 
         Number value ->
             String.fromFloat value
+                |> (\s ->
+                        if String.contains "." s then
+                            s
+
+                        else
+                            s ++ ".0"
+                   )
 
         Tuple items ->
-            "(" ++ String.join ", " (List.map pyExpr items) ++ ")"
+            case items of
+                [ item ] ->
+                    "(" ++ pyExpr item ++ ",)"
 
-        Record items ->
+                _ ->
+                    "(" ++ String.join "," (List.map pyExpr items) ++ ")"
+
+        Record fields ->
             "Record("
-                ++ String.join ", "
-                    (List.map (\( n, x ) -> n ++ "=" ++ pyExpr x)
-                        (Dict.toList items)
+                ++ String.join ","
+                    (List.map (\( n, v ) -> n ++ "=" ++ pyExpr v)
+                        (Dict.toList fields)
                     )
                 ++ ")"
 
-        Constructor _ name inputs ->
-            name ++ "(" ++ String.join ", " (List.map pyExpr inputs) ++ ")"
+        Constructor ( _, _ ) name inputs ->
+            name ++ "(" ++ String.join "," (List.map pyExpr inputs) ++ ")"
 
-        Let ( name, value ) output ->
-            name ++ " = " ++ pyExpr value ++ "\n" ++ pyExpr output
+        Let variables output ->
+            pyVariables pyExpr variables output
 
-        Load name typ ->
+        Load name _ ->
             name
 
-        Lambda ( name, value ) output ->
-            Debug.todo "pyExpr"
+        Function inputs output ->
+            if Dict.isEmpty inputs then
+                "lambda:" ++ pyExpr output
 
-        Call function input ->
-            Debug.todo "pyExpr"
+            else
+                "lambda "
+                    ++ String.join "," (Dict.keys inputs)
+                    ++ ":"
+                    ++ pyExpr output
 
-        CaseOf ( input, outputT ) cases ->
-            Debug.todo "pyExpr"
+        Call function inputs ->
+            let
+                inputsT =
+                    case typeOf function of
+                        FunctionT inputTypes _ ->
+                            inputTypes
+
+                        _ ->
+                            []
+
+                inputsLeft =
+                    List.map (\i -> "_" ++ String.fromInt i)
+                        (List.range (List.length inputs + 1)
+                            (List.length inputsT)
+                        )
+            in
+            if List.isEmpty inputsLeft then
+                pyExpr function
+                    ++ "("
+                    ++ String.join "," (List.map pyExpr inputs)
+                    ++ ")"
+
+            else
+                "lambda "
+                    ++ String.join "," inputsLeft
+                    ++ ":"
+                    ++ pyExpr function
+                    ++ "("
+                    ++ String.join "," (List.map pyExpr inputs ++ inputsLeft)
+                    ++ ")"
+
+        CaseOf ( input, _ ) cases default ->
+            "(lambda _:"
+                ++ String.join " else "
+                    (List.map pyConditionalCase cases ++ [ pyCase default ])
+                ++ ")("
+                ++ pyExpr input
+                ++ ")"
 
 
+pyVariables : (a -> String) -> Dict String a -> Expr -> String
+pyVariables f variables output =
+    if Dict.isEmpty variables then
+        pyExpr output
 
--- TYPE DEFINITION
+    else
+        "(lambda "
+            ++ String.join "," (Dict.keys variables)
+            ++ ":"
+            ++ pyExpr output
+            ++ ")("
+            ++ String.join "," (List.map f (Dict.values variables))
+            ++ ")"
 
 
-pyTypeDef : String -> List Type -> Dict String (List Type) -> Package -> Result Error (List String)
-pyTypeDef name typeInputs constructors pkg =
-    Debug.todo "pyTypeDef"
+pyConditionalCase : ( List Condition, Dict String Accessor, Expr ) -> String
+pyConditionalCase ( conditions, variables, output ) =
+    pyCase ( variables, output )
+        ++ " if "
+        ++ (if List.isEmpty conditions then
+                "True"
+
+            else
+                String.join " and " (List.map pyCondition conditions)
+           )
 
 
+pyCondition : Condition -> String
+pyCondition condition =
+    case condition of
+        EqualsType accessor typ ->
+            pyAccessor accessor ++ "==" ++ pyType typ
 
--- PACKAGE
+        EqualsInt accessor value ->
+            pyAccessor accessor ++ "==" ++ String.fromInt value
+
+        EqualsNumber accessor value ->
+            pyAccessor accessor ++ "==" ++ String.fromFloat value
+
+        EqualsConstructor accessor _ name ->
+            "type(" ++ pyAccessor accessor ++ ")==" ++ name
 
 
-pyPackage : Package -> Result PackageErrors (List String)
-pyPackage pkg =
-    -- TypeT, IntT, NumberT must be defined
-    -- NameT are classes
-    -- RecordT must
-    --      from typing import NamedTuple
-    --      RecordType = lambda fields: NamedTuple('Record', fields.items())
-    --      Record = lambda fields: namedtuple('Record', fields.keys())(**fields)
-    -- GenericT must
-    --      from typing import TypeVar
-    --      a = TypeVar('T')
-    Debug.todo "pyPackage"
+pyCase : ( Dict String Accessor, Expr ) -> String
+pyCase ( variables, output ) =
+    pyVariables pyAccessor variables output
+
+
+pyAccessor : Accessor -> String
+pyAccessor accessor =
+    case accessor of
+        Self ->
+            "_"
+
+        TupleItem index ->
+            "_[" ++ String.fromInt index ++ "]"
+
+        RecordField name ->
+            "_." ++ name
+
+        ConstructorInput index ->
+            "_._" ++ String.fromInt (index + 1)
