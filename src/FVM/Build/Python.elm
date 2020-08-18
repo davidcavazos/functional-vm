@@ -25,27 +25,46 @@ pyType typ =
             "Number"
 
         TupleT itemsT ->
-            case itemsT of
-                [ itemT ] ->
-                    "(" ++ pyType itemT ++ ",)"
-
-                _ ->
-                    "(" ++ String.join "," (List.map pyType itemsT) ++ ")"
+            "Tuple[" ++ String.join "," (List.map pyType itemsT) ++ "]"
 
         RecordT fieldsT ->
-            -- "Record("
-            --     ++ String.join ","
-            --         (List.map (\( n, t ) -> n ++ "=" ++ pyType t)
-            --             (Dict.toList itemsT)
-            --         )
-            --     ++ ")"
-            Debug.todo "RecordT"
+            "RecordType("
+                ++ String.join ","
+                    (List.map (\( n, t ) -> n ++ "=" ++ pyType t)
+                        (Dict.toList fieldsT)
+                    )
+                ++ ")"
 
         NameT name inputs ->
-            Debug.todo "NameT"
+            let
+                typeInputs =
+                    List.filterMap
+                        (\input ->
+                            case input of
+                                Type t ->
+                                    Just t
+
+                                _ ->
+                                    Nothing
+                        )
+                        inputs
+            in
+            if List.isEmpty typeInputs then
+                name
+
+            else
+                name
+                    ++ "["
+                    ++ String.join "," (List.map pyType typeInputs)
+                    ++ "]"
 
         FunctionT inputsT outputT ->
-            Debug.todo "FunctionT"
+            "Callable["
+                ++ "["
+                ++ String.join "," (List.map pyType inputsT)
+                ++ "],"
+                ++ pyType outputT
+                ++ "]"
 
 
 
@@ -87,7 +106,7 @@ pyExpr expr =
                     )
                 ++ ")"
 
-        Constructor ( _, _ ) name inputs ->
+        Constructor _ name inputs ->
             name ++ "(" ++ String.join "," (List.map pyExpr inputs) ++ ")"
 
         Let variables output ->

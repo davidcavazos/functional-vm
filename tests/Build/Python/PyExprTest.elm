@@ -9,7 +9,7 @@ import Test exposing (Test, describe, test)
 
 suite : Test
 suite =
-    describe "dump thon -- pyExpr"
+    describe "build Python -- pyExpr"
         -- Type
         [ describe "Type"
             [ test "type -- Type" <|
