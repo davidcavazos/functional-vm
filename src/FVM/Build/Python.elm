@@ -1,11 +1,138 @@
 module FVM.Build.Python exposing
-    ( pyExpr
+    ( buildPython
+    , pyExpression
     , pyType
+    , pyTypeDef
     )
 
-import ASM exposing (Accessor(..), Condition(..), Expr(..), Type(..), typeOf)
+import ASM exposing (Accessor(..), Condition(..), Expression(..), Type(..), typeOf)
 import Dict exposing (Dict)
+import FVM exposing (Package, PackageErrors)
+import FVM.Build exposing (build)
 import List
+import Set exposing (Set)
+
+
+shebang : String
+shebang =
+    "#!/usr/bin/env python3"
+
+
+
+-- BUILD PYTHON
+
+
+buildPython : Package -> Result PackageErrors String
+buildPython pkg =
+    build
+        { typeType =
+            { imports = Set.empty
+            , init = [ "class Type:pass" ]
+            }
+        , intType =
+            { imports = Set.empty
+            , init = [ "Int=int" ]
+            }
+        , numberType =
+            { imports = Set.empty
+            , init = [ "Number=float" ]
+            }
+        , tupleType =
+            \_ ->
+                { imports = Set.empty
+                , init = []
+                }
+        , recordType =
+            \_ ->
+                { imports = Set.empty
+                , init = []
+                }
+        , functionType =
+            \_ _ ->
+                { imports = Set.empty
+                , init = []
+                }
+        , genericType =
+            \_ ->
+                { imports = Set.empty
+                , init = []
+                }
+        , typeDef = pyTypeDef
+        , namedExpression = pyNamedExpression
+        }
+        (\defs ->
+            let
+                inits =
+                    List.map (\{ init } -> init) defs
+            in
+            String.join "\n" (shebang :: List.concat inits)
+        )
+        pkg
+
+
+
+-- PYTHON TYPE DEFINITION
+
+
+pyTypeDef : ( String, List Type ) -> Dict String (List Type) -> { imports : Set String, init : List String }
+pyTypeDef ( typeName, typeInputs ) constructors =
+    let
+        pyTypeInputs =
+            List.filterMap
+                (\typ ->
+                    case typ of
+                        GenericT name ->
+                            Just name
+
+                        _ ->
+                            Nothing
+                )
+                typeInputs
+
+        pyParent =
+            typeName ++ pyList "[" pyTypeInputs "]"
+    in
+    { imports = Set.empty
+    , init =
+        ("class " ++ typeName ++ pyList "(" pyTypeInputs ")" ++ ":pass")
+            :: List.concatMap (pyConstructorDef pyParent)
+                (Dict.toList constructors)
+    }
+
+
+pyConstructorDef : String -> ( String, List Type ) -> List String
+pyConstructorDef pyParent ( name, inputsT ) =
+    [ "@dataclass"
+    , "class " ++ name ++ "(" ++ pyParent ++ "):"
+    ]
+        ++ (if List.isEmpty inputsT then
+                [ "  pass" ]
+
+            else
+                List.indexedMap
+                    (\i t ->
+                        "  _" ++ String.fromInt (i + 1) ++ ":" ++ pyType t
+                    )
+                    inputsT
+           )
+
+
+pyList : String -> List String -> String -> String
+pyList start xs end =
+    if List.isEmpty xs then
+        ""
+
+    else
+        start ++ String.join "," xs ++ end
+
+
+
+-- PYTHON NAMED EXPRESSION
+
+
+pyNamedExpression : String -> Expression -> { imports : Set String, init : List String }
+pyNamedExpression name expr =
+    Debug.todo "pyNamedExpression"
 
 
 
@@ -66,13 +193,19 @@ pyType typ =
                 ++ pyType outputT
                 ++ "]"
 
+        GenericT name ->
+            name
+
+        UnionT types ->
+            "Union[" ++ String.join "," (List.map pyType types) ++ "]"
+
 
 
 -- PYTHON EXPRESSION
 
 
-pyExpr : Expr -> String
-pyExpr expr =
+pyExpression : Expression -> String
+pyExpression expr =
     case expr of
         Type typ ->
             pyType typ
@@ -93,37 +226,37 @@ pyExpr expr =
         Tuple items ->
             case items of
                 [ item ] ->
-                    "(" ++ pyExpr item ++ ",)"
+                    "(" ++ pyExpression item ++ ",)"
 
                 _ ->
-                    "(" ++ String.join "," (List.map pyExpr items) ++ ")"
+                    "(" ++ String.join "," (List.map pyExpression items) ++ ")"
 
         Record fields ->
             "Record("
                 ++ String.join ","
-                    (List.map (\( n, v ) -> n ++ "=" ++ pyExpr v)
+                    (List.map (\( n, v ) -> n ++ "=" ++ pyExpression v)
                         (Dict.toList fields)
                     )
                 ++ ")"
 
         Constructor _ name inputs ->
-            name ++ "(" ++ String.join "," (List.map pyExpr inputs) ++ ")"
+            name ++ "(" ++ String.join "," (List.map pyExpression inputs) ++ ")"
 
         Let variables output ->
-            pyVariables pyExpr variables output
+            pyVariables pyExpression variables output
 
         Load name _ ->
             name
 
         Function inputs output ->
             if Dict.isEmpty inputs then
-                "lambda:" ++ pyExpr output
+                "lambda:" ++ pyExpression output
 
             else
                 "lambda "
                     ++ String.join "," (Dict.keys inputs)
                     ++ ":"
-                    ++ pyExpr output
+                    ++ pyExpression output
 
         Call function inputs ->
             let
@@ -142,18 +275,18 @@ pyExpr expr =
                         )
             in
             if List.isEmpty inputsLeft then
-                pyExpr function
+                pyExpression function
                     ++ "("
-                    ++ String.join "," (List.map pyExpr inputs)
+                    ++ String.join "," (List.map pyExpression inputs)
                     ++ ")"
 
             else
                 "lambda "
                     ++ String.join "," inputsLeft
                     ++ ":"
-                    ++ pyExpr function
+                    ++ pyExpression function
                     ++ "("
-                    ++ String.join "," (List.map pyExpr inputs ++ inputsLeft)
+                    ++ String.join "," (List.map pyExpression inputs ++ inputsLeft)
                     ++ ")"
 
         CaseOf ( input, _ ) cases default ->
@@ -161,26 +294,26 @@ pyExpr expr =
                 ++ String.join " else "
                     (List.map pyConditionalCase cases ++ [ pyCase default ])
                 ++ ")("
-                ++ pyExpr input
+                ++ pyExpression input
                 ++ ")"
 
 
-pyVariables : (a -> String) -> Dict String a -> Expr -> String
+pyVariables : (a -> String) -> Dict String a -> Expression -> String
 pyVariables f variables output =
     if Dict.isEmpty variables then
-        pyExpr output
+        pyExpression output
 
     else
         "(lambda "
             ++ String.join "," (Dict.keys variables)
             ++ ":"
-            ++ pyExpr output
+            ++ pyExpression output
             ++ ")("
             ++ String.join "," (List.map f (Dict.values variables))
             ++ ")"
 
 
-pyConditionalCase : ( List Condition, Dict String Accessor, Expr ) -> String
+pyConditionalCase : ( List Condition, Dict String Accessor, Expression ) -> String
 pyConditionalCase ( conditions, variables, output ) =
     pyCase ( variables, output )
         ++ " if "
@@ -208,7 +341,7 @@ pyCondition condition =
             "type(" ++ pyAccessor accessor ++ ")==" ++ name
 
 
-pyCase : ( Dict String Accessor, Expr ) -> String
+pyCase : ( Dict String Accessor, Expression ) -> String
 pyCase ( variables, output ) =
     pyVariables pyAccessor variables output
 

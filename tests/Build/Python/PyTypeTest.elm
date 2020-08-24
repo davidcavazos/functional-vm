@@ -1,6 +1,6 @@
 module Build.Python.PyTypeTest exposing (suite)
 
-import ASM exposing (Accessor(..), Condition(..), Expr(..), Type(..))
+import ASM exposing (Accessor(..), Condition(..), Expression(..), Type(..))
 import Dict
 import Expect
 import FVM.Build.Python exposing (pyType)
@@ -118,5 +118,33 @@ suite =
                 \_ ->
                     pyType (FunctionT [ IntT, IntT, NumberT ] TypeT)
                         |> Expect.equal "Callable[[Int,Int,Number],Type]"
+            ]
+
+        -- GenericT
+        , describe "GenericT"
+            [ test "generic type -- a" <|
+                \_ ->
+                    pyType (GenericT "a")
+                        |> Expect.equal "a"
+            ]
+
+        -- UnionT
+        , describe "UnionT"
+            [ test "union type without types" <|
+                \_ ->
+                    pyType (UnionT [])
+                        |> Expect.equal "Union[]"
+
+            --
+            , test "union type of one type -- Int" <|
+                \_ ->
+                    pyType (UnionT [ IntT ])
+                        |> Expect.equal "Union[Int]"
+
+            --
+            , test "union type of many types -- Int | Number | Type" <|
+                \_ ->
+                    pyType (UnionT [ IntT, NumberT, TypeT ])
+                        |> Expect.equal "Union[Int,Number,Type]"
             ]
         ]

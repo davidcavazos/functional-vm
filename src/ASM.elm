@@ -1,12 +1,19 @@
 module ASM exposing
     ( Accessor(..)
     , Condition(..)
-    , Expr(..)
+    , Expression(..)
+    , Package
     , Type(..)
     , typeOf
     )
 
 import Dict exposing (Dict)
+
+
+type alias Package =
+    { types : Dict String ( List Type, Dict String (List Type) )
+    , names : Dict String Expression
+    }
 
 
 type Type
@@ -15,29 +22,31 @@ type Type
     | NumberT
     | TupleT (List Type)
     | RecordT (Dict String Type)
-    | NameT String (List Expr)
+    | NameT String (List Expression)
     | FunctionT (List Type) Type
+    | GenericT String
+    | UnionT (List Type)
 
 
-type Expr
+type Expression
     = Type Type
     | Int Int
     | Number Float
-    | Tuple (List Expr)
-    | Record (Dict String Expr)
-    | Constructor ( String, List Expr ) String (List Expr)
-    | Let (Dict String Expr) Expr
+    | Tuple (List Expression)
+    | Record (Dict String Expression)
+    | Constructor ( String, List Expression ) String (List Expression)
+    | Let (Dict String Expression) Expression
     | Load String Type
-    | Function (Dict String Type) Expr
-    | Call Expr (List Expr)
-    | CaseOf ( Expr, Type ) (List ( List Condition, Dict String Accessor, Expr )) ( Dict String Accessor, Expr )
+    | Function (Dict String Type) Expression
+    | Call Expression (List Expression)
+    | CaseOf ( Expression, Type ) (List ( List Condition, Dict String Accessor, Expression )) ( Dict String Accessor, Expression )
 
 
 type Condition
     = EqualsType Accessor Type
     | EqualsInt Accessor Int
     | EqualsNumber Accessor Float
-    | EqualsConstructor Accessor ( String, List Expr ) String
+    | EqualsConstructor Accessor ( String, List Expression ) String
 
 
 type Accessor
@@ -51,7 +60,7 @@ type Accessor
 -- TYPE OF EXPRESSION
 
 
-typeOf : Expr -> Type
+typeOf : Expression -> Type
 typeOf expr =
     case expr of
         Type _ ->
