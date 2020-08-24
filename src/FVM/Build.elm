@@ -106,15 +106,18 @@ compileType typ =
                     case t of
                         LambdaT inT outT ->
                             getFunctionType outT
-                                |> Tuple.mapFirst (\ts -> inT :: ts)
+                                |> Tuple.mapFirst
+                                    (\ts ->
+                                        compileType inT :: ts
+                                    )
 
                         _ ->
-                            ( [], t )
+                            ( [], compileType t )
 
                 ( inputsT, outputT ) =
                     getFunctionType typ
             in
-            ASM.FunctionT (List.map compileType inputsT) (compileType outputT)
+            ASM.FunctionT inputsT outputT
 
         GenericT name ->
             ASM.GenericT name
@@ -140,22 +143,56 @@ compileExpression expression =
             ASM.Number value
 
         Tuple items ->
-            Debug.todo "compile expression"
+            ASM.Tuple (List.map compileExpression items)
 
         Record fields ->
-            Debug.todo "compile expression"
+            ASM.Record (Dict.map (\_ -> compileExpression) fields)
 
-        Constructor namedType name inputs ->
-            Debug.todo "compile expression"
+        Constructor ( typeName, typeInputs ) name inputs ->
+            ASM.Constructor ( typeName, List.map compileExpression typeInputs )
+                name
+                (List.map compileExpression inputs)
 
-        Let ( name, value ) output ->
-            Debug.todo "compile expression"
+        Let _ _ ->
+            let
+                getVariables e =
+                    case e of
+                        Let ( name, value ) out ->
+                            getVariables out
+                                |> Tuple.mapFirst
+                                    (\xs ->
+                                        ( name, compileExpression value ) :: xs
+                                    )
+
+                        _ ->
+                            ( [], compileExpression e )
+
+                ( variables, output ) =
+                    getVariables expression
+            in
+            ASM.Let (Dict.fromList variables) output
 
         Load name typ ->
-            Debug.todo "compile expression"
+            ASM.Load name (compileType typ)
 
-        Lambda ( inputName, inputT ) outputT ->
-            Debug.todo "compile expression"
+        Lambda _ _ ->
+            let
+                getFunction e =
+                    case e of
+                        Lambda ( name, inputT ) out ->
+                            getFunction out
+                                |> Tuple.mapFirst
+                                    (\ins ->
+                                        ( name, compileType inputT ) :: ins
+                                    )
+
+                        _ ->
+                            ( [], compileExpression e )
+
+                ( inputs, output ) =
+                    getFunction expression
+            in
+            ASM.Function (Dict.fromList inputs) output
 
         Call function input ->
             Debug.todo "compile expression"

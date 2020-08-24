@@ -4,7 +4,7 @@ import Dict
 import Expect
 import FVM exposing (Expression(..), Type(..))
 import FVM.Build exposing (compile)
-import FVM.Package exposing (letName)
+import FVM.Package
 import Test exposing (Test, describe, test)
 
 
